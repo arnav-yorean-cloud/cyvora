@@ -1,0 +1,20 @@
+# Dependency Folders
+node_modules/
+client/node_modules/
+server/node_modules/
+
+# Environment Keys & Credentials 
+.env
+server/.env
+client/.env
+
+# Production Build Artifacts
+client/dist/
+client/build/
+
+# Operating System Logs & IDE Cache
+.DS_Store
+.vscode/
+.idea/
+*.log
+npm-debug.log*

@@ -1,0 +1,43 @@
+@import "tailwindcss";
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-6px); }
+  75% { transform: translateX(6px); }
+}
+@keyframes movingData {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
+}
+
+.animate-data-flow {
+  background-size: 200% auto;
+  animation: movingData 2s linear infinite;
+}
+.animate-shake {
+  animation: shake 0.2s ease-in-out 0s 2;
+}
+/* Custom Cyber-Grid Core Blueprint Matrix Vector Base Layout */
+.cyber-blueprint-mesh {
+  background-size: 40px 40px;
+  background-image: 
+    linear-gradient(to right, rgba(147, 51, 234, 0.04) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(147, 51, 234, 0.04) 1px, transparent 1px);
+}
+
+/* Subtle crosshair grid overlay layer accents for extra geometric detail */
+.cyber-blueprint-mesh::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-size: 200px 200px;
+  background-image: 
+    radial-gradient(circle, rgba(168, 85, 247, 0.15) 1px, transparent 1px);
+  opacity: 0.6;
+}
+
+.gh-amber {
+  color: #ffa200;
+  text-shadow: 0 0 12px rgba(255, 162, 0, 0.4);
+}
