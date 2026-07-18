@@ -112,7 +112,7 @@ function ThreeDCarousel() {
   const ITEMS = [
     { k: '01 · Team Member',  t: 'ARNAV KALKHANDAY',                            s: 'Cyvora Authentication(landing-Dashboard)',             g: 'linear-gradient(135deg,#1f6feb,#7c3aed)' },
     { k: '02 · Team Member',  t: 'ANAMIKA PARASHAR',                            s: 'Cyvora Threat List feed',                              g: 'linear-gradient(135deg,#ff7e5f,#feb47b)' },
-    { k: '03 · Team Member',  t: 'KASISH CHAUHAN',                              s: 'Cyvora URL Scanner(Sites Config.)',                    g: 'linear-gradient(135deg,#0ea5e9,#1e3a8a)' },
+    { k: '03 · Team Member',  t: 'KASHISH CHAUHAN',                             s: 'Cyvora URL Scanner(Sites Config.)',                    g: 'linear-gradient(135deg,#0ea5e9,#1e3a8a)' },
     { k: '04 · Team Member',  t: 'VEDANSH VARSHNEY',                            s: 'Cyvora Simulation Game(+XP management)',               g: 'linear-gradient(135deg,#10b981,#84cc16)' },
     { k: 'SECURE++',          t: 'Cyvora Auth. is fully secured for users',     s: 'TRY IT NOW..',                                         g: 'linear-gradient(135deg,#a855f7,#ec4899)' },
     { k: 'WELCOME',           t: 'CLICK ON GET STARTED TO REGISTER',            s: 'Start your journey and climb up ranks via BADGES',     g: 'linear-gradient(135deg,#fb7185,#f59e0b)' }
@@ -1964,7 +1964,7 @@ const handleVerifyOtp = async () => {
                 <h3 className="text-xl font-black text-white font-mono tracking-wider uppercase mt-4">CYVORA</h3>
                 <p className="text-xs text-[#94a3b8] leading-relaxed font-mono">Target infrastructure mapping layers are fully active.</p>
                 <p className="text-xs text-[#94a3b8] leading-relaxed font-mono">Built by IMSEC Students of 3-CS-1</p>
-                <p className="text-xs text-[#94a3b8] leading-relaxed font-mono">•ARNAV KALKHANDAY •KASISH CHAUHAN •ANAMIKA PARASHAR •VEDANSH VARSHNEY</p>
+                <p className="text-xs text-[#94a3b8] leading-relaxed font-mono">•ARNAV KALKHANDAY •KASHISH CHAUHAN •ANAMIKA PARASHAR •VEDANSH VARSHNEY</p>
               </div>
 
               <div className="border-t border-[#1e293b] pt-4 font-mono text-[9px] text-[#64748b] text-left space-y-1">
