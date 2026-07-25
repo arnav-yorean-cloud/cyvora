@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { auth, googleProvider } from './firebase';
 import { signInWithPopup } from 'firebase/auth';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas-pro';
 // ========================================================
 // HANDCRAFTED HORIZONTAL DEEP-OCEAN INTERACTIVE WAVE CANVAS
 // ========================================================
@@ -868,6 +870,41 @@ function App() {
   const [isScanning, setIsScanning] = useState(false);
   const [scanReport, setScanResult] = useState(null);
   const [showReport, setShowReport] = useState(false);
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
+  const handleDownloadPdf = async () => {
+    const element = document.getElementById('cyvora-report-print');
+    if (!element) return;
+    setIsDownloadingPdf(true);
+    try {
+      const canvas = await html2canvas(element, {
+        scale: 2,
+        backgroundColor: '#0b1120',
+        useCORS: true,
+        ignoreElements: (el) => el.classList && el.classList.contains('no-print'),
+        windowWidth: element.scrollWidth,
+        windowHeight: element.scrollHeight,
+        scrollX: 0,
+        scrollY: 0,
+      });
+      const imgData = canvas.toDataURL('image/png');
+      const imgWidthMM = 210;
+      const imgHeightMM = (canvas.height * imgWidthMM) / canvas.width;
+
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: [imgWidthMM, imgHeightMM],
+      });
+      pdf.addImage(imgData, 'PNG', 0, 0, imgWidthMM, imgHeightMM);
+
+      const safeName = (scanReport?.url || 'report').replace(/[^a-zA-Z0-9]/g, '_');
+      pdf.save(`Cyvora-Security-Report-${safeName}.pdf`);
+    } catch (err) {
+      console.error('PDF generation failed:', err);
+    } finally {
+      setIsDownloadingPdf(false);
+    }
+  };
   const [showDeepConfig, setShowConfig] = useState(false);
   const [scanError, setScanError] = useState(null);
   const [isConfigLoading, setIsConfigLoading] = useState(false);
@@ -1279,7 +1316,7 @@ const handleVerifyOtp = async () => {
               ======================================================== */}
           {dashSubView === 'scanner' && (
             <div className="flex-1 w-full overflow-y-auto px-4 py-8 md:p-12 scroll-smooth animate-fadeIn relative z-10 flex flex-col items-center">
-              <div className="max-w-4xl w-full space-y-8 pb-32">
+              <div className="max-w-7xl w-full space-y-8 pb-32">
                 
                 {/* Module Header Utilities Container */}
                 <div className="border-b border-white/5 pb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -1294,7 +1331,7 @@ const handleVerifyOtp = async () => {
                   <button
                     type="button"
                     onClick={() => setShowResetModal(true)}
-                    className="self-start sm:self-center h-9 px-4 rounded-xl border border-yellow-500/20 bg-yellow-500/5 font-mono text-[10px] font-bold tracking-widest text-yellow-400 uppercase flex items-center gap-2 hover:bg-yellow-500 hover:text-black hover:border-transparent transition-all duration-300 ease-[cubic-bezier(0.34,1.06,0.5,1)] cursor-pointer shadow-lg active:scale-95 shrink-0"
+                    className="self-start sm:self-center h-9 px-4 rounded-xl border border-yellow-500/20 bg-yellow-500/5 font-mono text-[15px] font-bold tracking-widest text-yellow-400 uppercase flex items-center gap-2 hover:bg-yellow-500 hover:text-black hover:border-transparent transition-all duration-300 ease-[cubic-bezier(0.34,1.06,0.5,1)] cursor-pointer shadow-lg active:scale-95 shrink-0"
                   >
                     <span>↻</span> REFRESH
                   </button>
@@ -1714,152 +1751,141 @@ const handleVerifyOtp = async () => {
           )} 
 
           {showReport && scanReport && (() => {
-            const severityFor = (grade) => (grade === 'A' || grade === 'B') ? 'PASS' : (grade === 'C' ? 'WARNING' : 'CRITICAL');
-            const sev = severityFor(scanReport.grade);
-            const sevTheme = {
-              PASS:     { bg: '#ecfdf5', border: '#a7f3d0', text: '#047857', ring: '#10b981' },
-              WARNING:  { bg: '#fffbeb', border: '#fde68a', text: '#b45309', ring: '#f59e0b' },
-              CRITICAL: { bg: '#fef2f2', border: '#fecaca', text: '#b91c1c', ring: '#ef4444' },
-            }[sev];
-            const reportId = `CYV-${(scanReport.url || '').replace(/[^a-zA-Z0-9]/g, '').slice(0, 6).toUpperCase() || 'SCAN'}-${Date.now().toString().slice(-6)}`;
+  const severityFor = (grade) => (grade === 'A' || grade === 'B') ? 'PASS' : (grade === 'C' ? 'WARNING' : 'CRITICAL');
+  const sev = severityFor(scanReport.grade);
+  const sevTheme = {
+    PASS:     { text: 'text-emerald-400', bg: 'bg-emerald-500/5', border: 'border-emerald-500/20', bar: '#10b981' },
+    WARNING:  { text: 'text-yellow-400',  bg: 'bg-yellow-500/5',  border: 'border-yellow-500/20',  bar: '#f59e0b' },
+    CRITICAL: { text: 'text-red-400',     bg: 'bg-red-500/5',     border: 'border-red-500/20',     bar: '#ef4444' },
+  }[sev];
+  const reportId = `CYV-${(scanReport.url || '').replace(/[^a-zA-Z0-9]/g, '').slice(0, 6).toUpperCase() || 'SCAN'}-${Date.now().toString().slice(-6)}`;
 
-            return (
-              <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
-                <style>{`
-                  @page { size: A4; margin: 14mm; }
-                  @media print {
-                    body * { visibility: hidden; }
-                    #cyvora-report-print, #cyvora-report-print * { visibility: visible; }
-                    #cyvora-report-print { position: absolute; inset: 0; width: 100%; box-shadow: none !important; border: none !important; border-radius: 0 !important; max-height: none !important; overflow: visible !important; }
-                    #cyvora-report-print .no-print { display: none !important; }
-                    #cyvora-report-print .report-section { break-inside: avoid; }
-                  }
-                `}</style>
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+      <div id="cyvora-report-print" className="relative w-full max-w-3xl max-h-[92vh] overflow-y-auto rounded-2xl shadow-2xl bg-[#0b1120] border border-white/10 text-slate-300 font-mono">
+        <button type="button" onClick={() => setShowReport(false)} className="no-print absolute top-4 right-4 z-10 w-9 h-9 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-slate-400 hover:text-white flex items-center justify-center cursor-pointer">
+          X
+        </button>
 
-                <div id="cyvora-report-print" className="relative w-full max-w-3xl max-h-[92vh] overflow-y-auto rounded-2xl shadow-2xl bg-white text-slate-800" style={{ fontFamily: "'Inter','Segoe UI',ui-sans-serif,system-ui,sans-serif" }}>
-                  <button type="button" onClick={() => setShowReport(false)} className="no-print absolute top-4 right-4 z-10 w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center cursor-pointer">
-                    X
-                  </button>
+        <div className="px-10 pt-10 pb-6 border-b border-white/10">
+          <div className="flex items-start justify-between gap-6">
+            <div className="flex items-center gap-3">
+              <div className="w-11 h-11 rounded-xl flex items-center justify-center shadow-lg" style={{ background: 'linear-gradient(135deg,#7c3aed,#0891b2)' }}>
+                <svg viewBox="0 0 24 24" fill="none" className="w-6 h-6">
+                  <path d="M12 2L4 5v6c0 5 3.4 8.7 8 10 4.6-1.3 8-5 8-10V5l-8-3z" fill="white" fillOpacity="0.15" stroke="white" strokeWidth="1.5" strokeLinejoin="round"/>
+                  <path d="M8.5 12l2.3 2.3L15.5 9.5" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </div>
+              <div>
+                <div className="text-[19px] font-extrabold tracking-tight text-white uppercase">Cyvora</div>
+                <div className="text-[10px] font-medium text-slate-500 tracking-widest uppercase">Web Security Intelligence Platform</div>
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="text-[9px] font-semibold text-slate-500 uppercase tracking-widest">Report ID</div>
+              <div className="text-[13px] font-mono font-bold text-amber-400">{reportId}</div>
+            </div>
+          </div>
+          <h1 className="mt-6 text-xl font-black text-white tracking-wide uppercase">Website Security Assessment Report</h1>
+          <div className="mt-2 flex flex-wrap items-center gap-x-6 gap-y-1 text-[11px] text-slate-500">
+            <span><span className="font-semibold text-slate-400 uppercase">Target:</span> <span className="text-yellow-400">{scanReport.url}</span></span>
+            <span><span className="font-semibold text-slate-400 uppercase">Generated:</span> {scanReport.timestamp || new Date().toLocaleString()}</span>
+            <span><span className="font-semibold text-slate-400 uppercase">Engine:</span> Cyvora Core v3.0</span>
+          </div>
+        </div>
 
-                  <div className="px-10 pt-10 pb-6 border-b-[3px]" style={{ borderColor: '#1e1b4b' }}>
-                    <div className="flex items-start justify-between gap-6">
-                      <div className="flex items-center gap-3">
-                       <div className="w-11 h-11 rounded-xl flex items-center justify-center shadow-lg" style={{ background: 'linear-gradient(135deg,#7c3aed,#0891b2)' }}>
-  <svg viewBox="0 0 24 24" fill="none" className="w-6 h-6">
-    <path d="M12 2L4 5v6c0 5 3.4 8.7 8 10 4.6-1.3 8-5 8-10V5l-8-3z" fill="white" fillOpacity="0.15" stroke="white" strokeWidth="1.5" strokeLinejoin="round"/>
-    <path d="M8.5 12l2.3 2.3L15.5 9.5" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-  </svg>
-</div> 
-                        <div>
-                          <div className="text-[19px] font-extrabold tracking-tight text-slate-900">Cyvora</div>
-                          <div className="text-[11px] font-medium text-slate-400 tracking-wide uppercase">Web Security Intelligence Platform</div>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest">Report ID</div>
-                        <div className="text-[13px] font-mono font-bold text-slate-700">{reportId}</div>
-                      </div>
-                    </div>
-                    <h1 className="mt-6 text-2xl font-extrabold text-slate-900 tracking-tight">Website Security Assessment Report</h1>
-                    <div className="mt-2 flex flex-wrap items-center gap-x-6 gap-y-1 text-[12px] text-slate-500">
-                      <span><span className="font-semibold text-slate-600">Target:</span> {scanReport.url}</span>
-                      <span><span className="font-semibold text-slate-600">Generated:</span> {scanReport.timestamp || new Date().toLocaleString()}</span>
-                      <span><span className="font-semibold text-slate-600">Scan Engine:</span> Cyvora Core v3.0</span>
-                    </div>
-                  </div>
-
-                  <div className="px-10 py-8 space-y-8">
-                    <section className="report-section">
-                      <h2 className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-3">Executive Summary</h2>
-                      <div className="grid grid-cols-12 gap-4 items-stretch">
-                        <div className="col-span-4 rounded-xl border flex flex-col items-center justify-center py-5" style={{ backgroundColor: sevTheme.bg, borderColor: sevTheme.border }}>
-                          <div className="text-4xl font-black" style={{ color: sevTheme.text }}>{scanReport.grade}</div>
-                          <div className="text-[10px] font-bold uppercase tracking-widest mt-1" style={{ color: sevTheme.text }}>Overall Grade</div>
-                        </div>
-                        <div className="col-span-8 rounded-xl border border-slate-200 p-5 flex flex-col justify-center gap-3">
-                          <div className="flex items-center justify-between text-[12px]">
-                            <span className="font-semibold text-slate-500">Defensibility Score</span>
-                            <span className="font-bold text-slate-800">{scanReport.score}%</span>
-                          </div>
-                          <div className="w-full h-2.5 rounded-full bg-slate-100 overflow-hidden">
-                            <div className="h-full rounded-full" style={{ width: `${scanReport.score}%`, backgroundColor: sevTheme.ring }} />
-                          </div>
-                          <div className="inline-flex self-start items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider" style={{ backgroundColor: sevTheme.bg, color: sevTheme.text, border: `1px solid ${sevTheme.border}` }}>
-                            <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: sevTheme.ring }} />
-                            {scanReport.statusText}
-                          </div>
-                        </div>
-                      </div>
-                    </section>
-
-                    <section className="report-section">
-                      <h2 className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-3">Site & Infrastructure Details</h2>
-                      <div className="rounded-xl border border-slate-200 overflow-hidden">
-                        <table className="w-full text-[12px]">
-                          <tbody>
-                            {[
-                              ['Registrar', scanReport.metadata?.registrar],
-                              ['Transport Encryption', scanReport.metadata?.protocol],
-                              ['Cipher Suite', scanReport.metadata?.cipher],
-                              ['DMARC / Spoofing Resistance', scanReport.metadata?.dmarc],
-                              ['Domain Age', scanReport.metadata?.ageDays === 0 ? 'Local test environment' : `${scanReport.metadata?.ageDays} days`],
-                            ].map(([label, value], i) => (
-                              <tr key={label} className={i % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
-                                <td className="px-4 py-2.5 font-semibold text-slate-500 w-1/2 border-t border-slate-100">{label}</td>
-                                <td className="px-4 py-2.5 text-slate-800 font-medium border-t border-slate-100">{value || '-'}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </section>
-
-                    <section className="report-section">
-                      <h2 className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-3">
-                        Findings {scanReport.gaps?.length > 0 ? `(${scanReport.gaps.length})` : ''}
-                      </h2>
-                      {scanReport.gaps?.length > 0 ? (
-                        <div className="space-y-2">
-                          {scanReport.gaps.map((gap, idx) => (
-                            <div key={idx} className="flex items-start gap-3 rounded-xl border p-3.5" style={{ backgroundColor: '#fffbeb', borderColor: '#fde68a' }}>
-                              <span className="mt-0.5 text-[13px]" style={{ color: '#b45309' }}>!</span>
-                              <div>
-                                <div className="text-[11px] font-bold uppercase tracking-wide" style={{ color: '#b45309' }}>Medium Risk</div>
-                                <div className="text-[12.5px] text-slate-700 mt-0.5">{gap}</div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="rounded-xl border p-3.5 text-[12.5px]" style={{ backgroundColor: '#ecfdf5', borderColor: '#a7f3d0', color: '#047857' }}>
-                          No material security gaps were detected during this scan.
-                        </div>
-                      )}
-                    </section>
-
-                    <section className="report-section pt-4 border-t border-slate-100">
-                      <p className="text-[10.5px] leading-relaxed text-slate-400">
-                        This automated report was generated by the Cyvora scanning engine and reflects the target's externally observable configuration at the time of the scan. It is intended as a general security awareness aid and does not constitute a certified penetration test or compliance audit. Confidential - for the intended recipient only.
-                      </p>
-                      <div className="mt-3 flex items-center justify-between text-[10px] text-slate-300 font-mono">
-                        <span>Cyvora Security {new Date().getFullYear()}</span>
-                        <span>{reportId}</span>
-                      </div>
-                    </section>
-                  </div>
-
-                  <div className="no-print sticky bottom-0 bg-white/95 backdrop-blur border-t border-slate-200 px-10 py-4 flex gap-3">
-                    <button type="button" onClick={() => setShowReport(false)} className="flex-1 h-11 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 font-semibold text-[13px] cursor-pointer">
-                      Close
-                    </button>
-                    <button type="button" onClick={() => window.print()} className="flex-1 h-11 rounded-xl text-white font-semibold text-[13px] shadow-lg cursor-pointer" style={{ background: 'linear-gradient(135deg,#4f46e5,#7c3aed)' }}>
-                      Download PDF
-                    </button>
-                  </div>
+        <div className="px-10 py-8 space-y-8">
+          <section className="report-section">
+            <h2 className="text-[10px] font-bold uppercase tracking-widest text-amber-400 mb-3">Executive Summary</h2>
+            <div className="grid grid-cols-12 gap-4 items-stretch">
+              <div className={`col-span-4 rounded-xl border ${sevTheme.border} ${sevTheme.bg} flex flex-col items-center justify-center py-5`}>
+                <div className={`text-4xl font-black ${sevTheme.text}`}>{scanReport.grade}</div>
+                <div className={`text-[9px] font-bold uppercase tracking-widest mt-1 ${sevTheme.text}`}>Overall Grade</div>
+              </div>
+              <div className="col-span-8 rounded-xl border border-white/10 bg-black/20 p-5 flex flex-col justify-center gap-3">
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="font-semibold text-slate-400 uppercase tracking-wide">Defensibility Score</span>
+                  <span className="font-bold text-white">{scanReport.score}%</span>
+                </div>
+                <div className="w-full h-2.5 rounded-full bg-white/5 overflow-hidden">
+                  <div className="h-full rounded-full" style={{ width: `${scanReport.score}%`, backgroundColor: sevTheme.bar }} />
+                </div>
+                <div className={`inline-flex self-start items-center gap-1.5 px-3 py-1 rounded-full text-[9px] font-bold uppercase tracking-wider border ${sevTheme.border} ${sevTheme.bg} ${sevTheme.text}`}>
+                  <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: sevTheme.bar }} />
+                  {scanReport.statusText}
                 </div>
               </div>
-            );
-          })()}
+            </div>
+          </section>
+
+          <section className="report-section">
+            <h2 className="text-[10px] font-bold uppercase tracking-widest text-amber-400 mb-3">Site & Infrastructure Details</h2>
+            <div className="rounded-xl border border-white/10 overflow-hidden">
+              <table className="w-full text-[11px]">
+                <tbody>
+                  {[
+                    ['Registrar', scanReport.metadata?.registrar],
+                    ['Transport Encryption', scanReport.metadata?.protocol],
+                    ['Cipher Suite', scanReport.metadata?.cipher],
+                    ['DMARC / Spoofing Resistance', scanReport.metadata?.dmarc],
+                    ['Domain Age', scanReport.metadata?.ageDays === 0 ? 'Local test environment' : `${scanReport.metadata?.ageDays} days`],
+                  ].map(([label, value], i) => (
+                    <tr key={label} className={i % 2 === 0 ? 'bg-black/10' : 'bg-black/30'}>
+                      <td className="px-4 py-2.5 font-semibold text-slate-500 uppercase w-1/2 border-t border-white/5">{label}</td>
+                      <td className="px-4 py-2.5 text-slate-200 font-medium border-t border-white/5">{value || '-'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section className="report-section">
+            <h2 className="text-[10px] font-bold uppercase tracking-widest text-amber-400 mb-3">
+              Findings {scanReport.gaps?.length > 0 ? `(${scanReport.gaps.length})` : ''}
+            </h2>
+            {scanReport.gaps?.length > 0 ? (
+              <div className="space-y-2">
+                {scanReport.gaps.map((gap, idx) => (
+                  <div key={idx} className="flex items-start gap-3 rounded-xl border border-yellow-500/20 bg-yellow-500/5 p-3.5">
+                    <span className="mt-0.5 text-[13px] text-yellow-400">!</span>
+                    <div>
+                      <div className="text-[10px] font-bold uppercase tracking-wide text-yellow-400">Medium Risk</div>
+                      <div className="text-[12px] text-slate-300 mt-0.5">{gap}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3.5 text-[12px] text-emerald-400">
+                No material security gaps were detected during this scan.
+              </div>
+            )}
+          </section>
+
+          <section className="report-section pt-4 border-t border-white/10">
+            <p className="text-[10px] leading-relaxed text-slate-500">
+              This automated report was generated by the Cyvora scanning engine and reflects the target's externally observable configuration at the time of the scan. It is intended as a general security awareness aid and does not constitute a certified penetration test or compliance audit. Confidential - for the intended recipient only.
+            </p>
+            <div className="mt-3 flex items-center justify-between text-[9px] text-slate-600 font-mono">
+              <span>Cyvora Security {new Date().getFullYear()}</span>
+              <span>{reportId}</span>
+            </div>
+          </section>
+        </div>
+
+        <div className="no-print sticky bottom-0 bg-[#0b1120]/95 backdrop-blur border-t border-white/10 px-10 py-4 flex gap-3">
+          <button type="button" onClick={() => setShowReport(false)} className="flex-1 h-11 rounded-xl border border-white/10 text-slate-300 hover:bg-white/5 font-semibold text-[12px] uppercase tracking-wide cursor-pointer">
+            Close
+          </button>
+          <button type="button" onClick={handleDownloadPdf} disabled={isDownloadingPdf} className="flex-1 h-11 rounded-xl text-white font-semibold text-[12px] uppercase tracking-wide shadow-lg cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed" style={{ background: 'linear-gradient(135deg,#0891b2,#06b6d4)' }}>
+            {isDownloadingPdf ? 'Generating...' : 'Download PDF'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+})()}
 
           {/* VIEW C: ISOLATED WORKSPACE PLACEHOLDERS FOR FEATURE INJECTIONS */}
           {(dashSubView === 'intel' || dashSubView === 'game') && (
