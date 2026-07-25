@@ -1296,14 +1296,14 @@ const handleVerifyOtp = async () => {
                     onClick={() => setShowResetModal(true)}
                     className="self-start sm:self-center h-9 px-4 rounded-xl border border-yellow-500/20 bg-yellow-500/5 font-mono text-[10px] font-bold tracking-widest text-yellow-400 uppercase flex items-center gap-2 hover:bg-yellow-500 hover:text-black hover:border-transparent transition-all duration-300 ease-[cubic-bezier(0.34,1.06,0.5,1)] cursor-pointer shadow-lg active:scale-95 shrink-0"
                   >
-                    <span>🔄</span> RESET TERMINAL
+                    <span>↻</span> REFRESH
                   </button>
                 </div>
 
                 {/* SEARCH TERMINAL PORTAL */}
                 <div className="w-full rounded-2xl bg-[#090d16]/50 border border-white/10 p-6 shadow-xl backdrop-blur-xl space-y-4">
                   <label htmlFor="url-input" className="block text-[11px] font-mono font-bold tracking-widest text-slate-400 uppercase">
-                    PASTE LINK PATHWAY OR DOMAIN TARGET FOR LIVE RECON:
+                    Paste target URL to initiate security scan
                   </label>
                   <div className="flex flex-col sm:flex-row items-stretch gap-3 w-full">
                     <div className="flex-1 relative">
@@ -1360,7 +1360,7 @@ const handleVerifyOtp = async () => {
                         }
                       }}
                     >
-                      {isScanning ? 'SCANNING SURFACES...' : 'LAUNCH SECURITY SEARCH →'}
+                      {isScanning ? 'SCANNING SURFACES...' : 'SEARCH '}
                     </button>
                   </div>
                 </div>
@@ -1393,7 +1393,7 @@ const handleVerifyOtp = async () => {
                 <div className="w-full bg-[#090d16]/30 border border-white/5 rounded-2xl p-6 space-y-6 text-xs font-mono text-left">
                   <div className="flex justify-between items-center border-b border-white/5 pb-3">
                     <span className="text-slate-400 font-bold tracking-widest text-[10px] uppercase">OPERATIONAL RECON HISTORY MATRIX</span>
-                    <span className="bg-purple-500/10 text-purple-400 border border-purple-500/20 px-2.5 py-0.5 rounded-full font-black text-[10px]">
+                    <span className="bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 px-2.5 py-0.5 rounded-full font-black text-[10px]">
                       TOTAL RUNS: {scanHistory.length}
                     </span>
                   </div>
@@ -1427,9 +1427,9 @@ const handleVerifyOtp = async () => {
                             <button
                               type="button"
                               onClick={() => setExpandedTier(expandedTier === tier ? null : tier)}
-                              className="text-purple-400 hover:text-purple-300 tracking-widest font-black transition-colors duration-200 cursor-pointer uppercase text-[9px] bg-purple-500/5 border border-purple-500/20 px-2 py-0.5 rounded-md hover:scale-105 transform active:scale-95 ease-[cubic-bezier(0.34,1.06,0.5,1)]"
+                              className="text-yellow-400 hover:text-yellow-300 tracking-widest font-black transition-colors duration-200 cursor-pointer uppercase text-[9px] bg-yellow-500/5 border border-yellow-500/20 px-2 py-0.5 rounded-md hover:scale-105 transform active:scale-95 ease-[cubic-bezier(0.34,1.06,0.5,1)]"
                             >
-                              {expandedTier === tier ? 'COLLAPSE TERMINAL ✕' : 'EXPAND TERMINAL ↓'}
+                              {expandedTier === tier ? 'COLLAPSE TERMINAL ✕' : '⌞ EXPAND ⌝'}
                             </button>
                           </div>
                           
