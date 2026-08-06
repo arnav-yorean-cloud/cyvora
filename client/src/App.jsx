@@ -1916,9 +1916,9 @@ const handleVerifyOtp = async () => {
                     contact us
                   </div>
                   
-                  <div className="flex items-center gap-7 text-slate-400">
+                  <div className="flex items-center gap-2 text-slate-400">
                     <span className="text-purple-500">●</span> 
-                    <span className="text-slate-500 font-bold uppercase tracking-wider">ADMIN_CONTACT:</span> 
+                    <span className="text-slate-500 font-bold uppercase tracking-wider">ADMIN_CONTACT  :</span> 
                     <span className="text-white font-sans text-sm">a2024cs11121@imsec.ac.in</span>
                   </div>
                   
