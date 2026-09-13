@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useAuthSession } from './useAuthSession';
 import { auth, googleProvider } from './firebase';
 import { signInWithPopup } from 'firebase/auth';
 import jsPDF from 'jspdf';
