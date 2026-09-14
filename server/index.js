@@ -10,6 +10,9 @@ const axios = require('axios');
 const tls = require('tls');
 const dnsPromises = require('dns').promises;
 
+const { runFastTriage } = require('./utils/triageEngine');
+const memoryScanCache = new Map();
+
 const connectDB = require('./db');
 const User = require('./models/User');
 const Scan = require('./models/Scan');
@@ -116,13 +119,14 @@ app.post('/api/auth/signup', async (req, res) => {
 // ROUTE 2: AUTHENTICATION CHECKPOINT (LOGIN)
 // ==========================================
 app.post('/api/auth/login', async (req, res) => {
-  const { email, password } = req.body;
-  if (!email || !password) return res.status(400).json({ message: 'Missing parameters.' });
+  const { email, username } = req.body;
+  if (!email || !username) return res.status(400).json({ message: 'Missing parameters.' });
 
   const cleanEmail = email.toLowerCase().trim();
+  const cleanUsername = username.trim();
   const user = await User.findOne({ email: cleanEmail });
 
-  if (!user || user.password !== password) {
+  if (!user || user.username.toLowerCase() !== cleanUsername.toLowerCase()) {
     return res.status(401).json({ message: 'Invalid operator credentials clearance.' });
   }
 
@@ -253,98 +257,42 @@ app.get('/api/auth/debug-db', async (req, res) => {
 });
 
 // ========================================================
-// SHIELD BROWSER EXTENSION QUICK-CHECK ENGINE
+// SHIELD BROWSER EXTENSION QUICK-CHECK ENGINE (HYBRID ML/DNS)
 // ========================================================
-const SAFE_DOMAINS = new Set([
-  'google.com', 'www.google.com', 'youtube.com', 'github.com',
-  'amazon.com', 'wikipedia.org', 'microsoft.com', 'apple.com',
-  'cloudflare.com', 'linkedin.com', 'twitter.com', 'x.com',
-  'netflix.com', 'facebook.com', 'instagram.com', 'reddit.com'
-]);
-
-function isWhitelisted(hostname) {
-  if (SAFE_DOMAINS.has(hostname)) return true;
-  const parts = hostname.split('.');
-  if (parts.length > 2) {
-    return SAFE_DOMAINS.has(parts.slice(-2).join('.'));
-  }
-  return false;
-}
-
 app.get('/api/scan/quick-check', async (req, res) => {
   const { domain } = req.query;
   if (!domain) return res.status(400).json({ error: 'Domain query parameter is required' });
 
   const cleanDomain = domain.toLowerCase().trim();
 
-  // Tier 1: In-Memory Whitelist (< 5ms)
-  if (isWhitelisted(cleanDomain)) {
-    return res.json({ score: 98, verdict: 'Safe', cached: true, gaps: [] });
+  // Tier 1: In-Memory Fast Cache (< 1ms return)
+  if (memoryScanCache.has(cleanDomain)) {
+    return res.json({ ...memoryScanCache.get(cleanDomain), cached: true });
   }
 
   try {
-    // Tier 2: MongoDB 12h Cache
-    const cachedScan = await Scan.findOne({ domain: cleanDomain });
-    if (cachedScan) {
-      return res.json({
-        score: cachedScan.score,
-        verdict: cachedScan.score >= 75 ? 'Safe' : cachedScan.score >= 45 ? 'Moderate' : 'Critical',
-        cached: true,
-        gaps: cachedScan.gaps || []
-      });
+    // Tier 2: MongoDB 12h Cache (< 5ms)
+    const dbScan = await Scan.findOne({ domain: cleanDomain });
+    if (dbScan) {
+      const result = {
+        score: dbScan.score,
+        verdict: dbScan.score >= 75 ? 'Safe' : (dbScan.score >= 45 ? 'Moderate' : 'Critical'),
+        gaps: dbScan.gaps || [],
+        cached: true
+      };
+      memoryScanCache.set(cleanDomain, result);
+      return res.json(result);
     }
 
-    // Tier 3: Real-Time Fast Triage
-    let score = 100;
-    const gaps = [];
+    // Tier 3: Lexical ML + DNS Fast Triage
+    const triage = await runFastTriage(cleanDomain);
 
-    const suspiciousTLDs = ['.xyz', '.top', '.work', '.click', '.loan', '.gq', '.tk'];
-    if (suspiciousTLDs.some(tld => cleanDomain.endsWith(tld))) {
-      score -= 25;
-      gaps.push('High-risk Top-Level Domain (TLD)');
-    }
-    if ((cleanDomain.match(/-/g) || []).length >= 3) {
-      score -= 15;
-      gaps.push('Suspicious hyphen count (Phishing mimicry)');
-    }
+    if (memoryScanCache.size > 5000) memoryScanCache.clear();
+    memoryScanCache.set(cleanDomain, triage);
 
-    try {
-      const [txtRecords] = await Promise.allSettled([dnsPromises.resolveTxt(cleanDomain)]);
-      let hasSPF = false;
-      let hasDMARC = false;
-
-      if (txtRecords.status === 'fulfilled') {
-        hasSPF = txtRecords.value.some(entry => entry.join('').includes('v=spf1'));
-      }
-
-      try {
-        const dmarcTxt = await dnsPromises.resolveTxt(`_dmarc.${cleanDomain}`);
-        hasDMARC = dmarcTxt.some(entry => entry.join('').includes('v=DMARC1'));
-      } catch {
-        hasDMARC = false;
-      }
-
-      if (!hasSPF || !hasDMARC) {
-        score -= 10;
-        gaps.push('Missing DMARC/SPF authorization records');
-      }
-    } catch {
-      score -= 20;
-      gaps.push('Unresolvable DNS topology');
-    }
-
-    score -= 12; // Baseline deduction for missing headers
-    const finalScore = Math.max(10, Math.min(score, 100));
-    const verdict = finalScore >= 75 ? 'Safe' : finalScore >= 45 ? 'Moderate' : 'Critical';
-
-    return res.json({
-      score: finalScore,
-      verdict,
-      cached: false,
-      gaps
-    });
+    return res.json({ ...triage, cached: false });
   } catch (error) {
-    console.error('[Quick-Check Error]:', error);
+    console.error('[Quick-Check Error]:', error.message);
     return res.status(500).json({ error: 'Domain evaluation failed' });
   }
 });
