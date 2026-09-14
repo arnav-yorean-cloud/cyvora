@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuthSession } from './useAuthSession';
-import { auth, googleProvider } from './firebase';
-import { signInWithPopup } from 'firebase/auth';
+import { auth } from './firebase';
+import { signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas-pro';
 // ========================================================
@@ -872,19 +872,36 @@ function App() {
   const [scanReport, setScanResult] = useState(null);
   const [showReport, setShowReport] = useState(false);
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
-  // Read URL parameters from Cyvora Shield Extension handoff
+// Read URL parameters from Cyvora Shield Extension handoff
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const incomingUrl = params.get('targetUrl');
     const autoScan = params.get('autoScan');
 
     if (incomingUrl) {
-      setView('dashboard');
-      setDashSubView('scanner');
-      setTargetUrl(incomingUrl);
+      const savedUser = localStorage.getItem('cyvora_user');
+      let parsedUser = null;
+      try {
+        parsedUser = savedUser ? JSON.parse(savedUser) : null;
+      } catch (e) {
+        parsedUser = null;
+      }
 
+      if (parsedUser && parsedUser.email) {
+        setEmail(parsedUser.email);
+        if (parsedUser.username) setUsername(parsedUser.username);
+        setView('dashboard');
+        setDashSubView('scanner');
+        setTargetUrl(incomingUrl);
+      } else {
+        setView('landing');
+        handleAuthSwitch('login');
+        return;
+      }
+
+      // Execute live scan on the incoming URL
       if (autoScan === 'true') {
-        setTimeout(async () => {
+        const executeHandoffScan = async () => {
           setIsScanning(true);
           try {
             const res = await fetch('http://localhost:5000/api/scan/url', {
@@ -900,13 +917,18 @@ function App() {
                 gradeColor: data.score >= 90 ? 'text-emerald-400 stroke-emerald-400' : 'text-red-500 stroke-red-500',
                 timestamp: new Date().toLocaleTimeString()
               });
+            } else {
+              alert(data.message || 'Audit failed to complete');
             }
           } catch (err) {
-            console.error('Auto-scan execution error:', err);
+            console.error('Handoff scan error:', err);
           } finally {
             setIsScanning(false);
           }
-        }, 600);
+        };
+
+        // Allow React state 300ms to mount the scanner DOM before executing
+        setTimeout(executeHandoffScan, 300);
       }
     }
   }, []);
@@ -988,10 +1010,24 @@ function App() {
     }
     return () => clearInterval(timer);
   }, [cooldown]);
-  // SECURITY CORE: Automated Protected View Memory Enforcer
+  // SECURITY CORE: Auto-Restore Active Session on Page Load
   useEffect(() => {
+    const savedUser = localStorage.getItem('cyvora_user');
+    if (savedUser) {
+      try {
+        const parsed = JSON.parse(savedUser);
+        if (parsed && parsed.email) {
+          setEmail(parsed.email);
+          if (parsed.username) setUsername(parsed.username);
+          if (view === 'intro' || view === 'landing') {
+            setView('dashboard');
+          }
+          return;
+        }
+      } catch (e) {}
+    }
+
     if (view === 'dashboard' && !email) {
-      alert("Access Denied: Unauthenticated configuration token footprint detected.");
       setView('landing');
       handleAuthSwitch('login');
     }
@@ -1046,40 +1082,40 @@ const handleAuthSwitch = (mode) => {
   const handleGoogleAuth = async () => {
     setIsSubmitting(true);
     try {
-      // 🌐 Triggers native multi-account browser identity layer popup
-      const result = await signInWithPopup(auth, googleProvider);
+      const provider = new GoogleAuthProvider();
+      // Forces Google to show the account picker list every time
+      provider.setCustomParameters({
+        prompt: 'select_account'
+      });
+
+      const result = await signInWithPopup(auth, provider);
       const user = result.user;
 
-      // Extract verified profile records securely for dashboard initialization
-      if (user.email) {
+      const response = await fetch('http://localhost:5000/api/auth/google-sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: user.email,
+          username: user.displayName || user.email.split('@')[0]
+        })
+      });
+
+      const data = await response.json();
+      if (response.ok) {
+        localStorage.setItem('cyvora_user', JSON.stringify({
+          email: user.email,
+          username: user.displayName || user.email.split('@')[0],
+          sessionExpiresAt: data.sessionExpiresAt
+        }));
+
         setEmail(user.email);
-        if (user.displayName) setUsername(user.displayName);
-        // Dynamic background database sync handshake
-        const syncRes = await fetch('http://localhost:5000/api/auth/google-sync', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            email: user.email,
-            username: user.displayName || 'OAuth_Operator',
-            age: 'Not Specified',
-            gender: 'Other'
-          })
-        });
-        const syncData = await syncRes.json();
-
-        if (syncRes.ok && syncData.sessionExpiresAt) {
-          loginSession(syncData.user, syncData.sessionExpiresAt);
-        }
-
-        // Clear old token errors and log user straight in
-        setHomeEntered(false);
+        setUsername(user.displayName || user.email.split('@')[0]);
         setView('dashboard');
+      } else {
+        alert(data.error || 'Google authorization synchronization failure');
       }
     } catch (error) {
-      // Catch pop-up closures or credential termination updates safely
-      if (error.code !== 'auth/popup-closed-by-user') {
-        alert(`Google OAuth Handshake Blocked: ${error.message}`);
-      }
+      console.error('Google Sign-In Error:', error);
     } finally {
       setIsSubmitting(false);
     }
@@ -1328,7 +1364,31 @@ const handleVerifyOtp = async () => {
               </span>
               <span className="opacity-0 group-hover:opacity-100 whitespace-nowrap transition-opacity duration-200">CONTACT US</span>
             </button>
-
+            {/* CYVORA SHIELD EXTENSION DOWNLOAD ACTION */}
+            <button 
+              type="button"
+              onClick={() => {
+                alert(
+                  "🛡️ CYVORA SHIELD EXTENSION INSTALLATION\n\n" +
+                  "1. Open chrome://extensions\n" +
+                  "2. Turn on 'Developer mode' (top right)\n" +
+                  "3. Click 'Load unpacked' and select your 'cyvora/extension' folder.\n\n" +
+                  "Once loaded, Cyvora Shield monitors your active tabs in the background automatically."
+                );
+              }}
+              className="w-full font-mono text-xs font-bold tracking-wider h-11 px-3 rounded-xl text-purple-300 hover:bg-purple-600/20 border border-purple-500/20 bg-purple-500/5 transition-all flex items-center gap-4 cursor-pointer overflow-hidden"
+              title="Install Cyvora Shield Browser Extension"
+            >
+              <span className="shrink-0 flex items-center justify-center w-5 h-5 text-purple-400">
+                <svg className="w-4 h-4 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+              </span>
+              <span className="opacity-0 group-hover:opacity-100 whitespace-nowrap transition-opacity duration-200 uppercase text-[11px] text-purple-300">
+                CYVORA EXTENSION
+              </span>
+            </button>
+            
             <button 
               type="button"
               onClick={() => setShowLogoutModal(true)} 
@@ -1387,15 +1447,6 @@ const handleVerifyOtp = async () => {
                   </div>
                   
                   <div className="flex items-center gap-3">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        alert("Cyvora Shield Extension is ready!\n\nTo install:\n1. Open chrome://extensions\n2. Enable Developer Mode (top-right)\n3. Click 'Load unpacked' and select your cyvora/extension folder.");
-                      }}
-                      className="h-9 px-4 rounded-xl border border-purple-500/30 bg-purple-500/10 font-mono text-[12px] font-bold tracking-wider text-purple-300 uppercase flex items-center gap-2 hover:bg-purple-600 hover:text-white transition-all cursor-pointer shadow-lg"
-                    >
-                      <span>🛡️</span> INSTALL EXTENSION
-                    </button>
 
                     <button
                       type="button"

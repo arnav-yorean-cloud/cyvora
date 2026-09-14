@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      width: 260px;
+      margin: 0;
+      padding: 16px;
+      background: #090d16;
+      color: #fff;
+      font-family: monospace;
+      border: 1px solid #1e293b;
+    }
+    .header { display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #1e293b; pb-2; margin-bottom: 12px; }
+    .brand { font-weight: 900; color: #a855f7; letter-spacing: 1px; font-size: 13px; }
+    .status-card { background: #0f172a; padding: 12px; border-radius: 8px; text-align: center; border: 1px solid #334155; }
+    .score { font-size: 28px; font-weight: 900; }
+    .score-green { color: #10b981; }
+    .score-red { color: #ef4444; }
+    .domain { font-size: 11px; color: #94a3b8; word-break: break-all; margin-top: 6px; }
+    .btn { display: block; margin-top: 12px; padding: 8px; background: #9333ea; color: #fff; text-align: center; border-radius: 6px; text-decoration: none; font-size: 11px; font-weight: bold; }
+    .btn:hover { background: #7e22ce; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <span class="brand">CYVORA SHIELD</span>
+    <span style="font-size: 10px; color: #10b981;">● LIVE</span>
+  </div>
+  <div class="status-card">
+    <div id="scoreDisplay" class="score score-green">--</div>
+    <div id="domainDisplay" class="domain">Inspecting active tab...</div>
+  </div>
+  <a id="inspectLink" href="http://localhost:5173" target="_blank" class="btn">OPEN CYVORA RECON</a>
+  <script src="popup.js" type="module"></script>
+</body>
+</html>

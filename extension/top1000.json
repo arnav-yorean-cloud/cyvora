@@ -1,0 +1,15 @@
+[
+  "google.com", "youtube.com", "facebook.com", "amazon.com", "apple.com",
+  "wikipedia.org", "twitter.com", "x.com", "instagram.com", "linkedin.com",
+  "microsoft.com", "netflix.com", "cloudflare.com", "github.com", "whatsapp.com",
+  "reddit.com", "bing.com", "yahoo.com", "spotify.com", "twitch.tv",
+  "adobe.com", "salesforce.com", "dropbox.com", "stackoverflow.com", "medium.com",
+  "zoom.us", "pinterest.com", "tumblr.com", "vimeo.com", "paypal.com",
+  "stripe.com", "gitlab.com", "npmjs.com", "canva.com", "figma.com",
+  "notion.so", "slack.com", "telegram.org", "discord.com", "tiktok.com",
+  "openai.com", "anthropic.com", "huggingface.co", "chatgpt.com", "gemini.google.com",
+  "imsec.ac.in", "aktu.ac.in", "nptel.ac.in", "swayam.gov.in", "iitd.ac.in",
+  "iitb.ac.in", "iitk.ac.in", "iitm.ac.in", "delhi.gov.in", "up.gov.in", "gov.in", "nic.in",
+  "vercel.app", "netlify.app", "render.com", "supabase.com", "firebaseapp.com",
+  "docker.com", "geeksforgeeks.org", "leetcode.com", "hackerrank.com", "w3schools.com"
+]
