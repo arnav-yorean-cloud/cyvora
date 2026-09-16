@@ -3,15 +3,14 @@ import { runLocalMLClassification } from './mlEngine.js';
 
 const BACKEND_API = 'http://localhost:5000/api/scan/quick-check';
 const DASHBOARD_URL = 'http://localhost:5173';
+const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000;
 
-// 1. Immediately turn badge GREY when user starts navigation
 chrome.webNavigation.onBeforeNavigate.addListener((details) => {
   if (details.frameId !== 0) return;
   chrome.action.setBadgeText({ tabId: details.tabId, text: '...' });
-  chrome.action.setBadgeBackgroundColor({ tabId: details.tabId, color: '#64748b' }); // Grey checking state
+  chrome.action.setBadgeBackgroundColor({ tabId: details.tabId, color: '#64748b' });
 });
 
-// 2. Evaluate target on navigation complete
 chrome.webNavigation.onCompleted.addListener(async (details) => {
   if (details.frameId !== 0) return;
 
@@ -22,50 +21,66 @@ chrome.webNavigation.onCompleted.addListener(async (details) => {
 
     let evalResult = null;
 
-    // TIER 1: Instant Whitelist Check (< 0.1ms)
+    // TIER 0: Whitelist Match -> Verified Safe
     if (isDomainWhitelisted(domain)) {
-      evalResult = { score: 98, verdict: 'Safe', gaps: [] };
+      evalResult = {
+        isWhitelisted: true,
+        verdict: 'Safe',
+        displayLabel: 'SAFE'
+      };
     } else {
-      // TIER 2: Fast Local ML Evaluation (< 2ms)
-      const localML = runLocalMLClassification(domain);
+      // TIER 1: Check 12-Hour Local Cache
+      const storageKey = `cyv_cache_${domain}`;
+      const cached = await chrome.storage.local.get(storageKey);
+      const now = Date.now();
 
-      if (localML.score < 50) {
-        // High risk detected locally, trigger immediately
-        evalResult = localML;
+      if (cached[storageKey] && (now - cached[storageKey].timestamp < TWELVE_HOURS_MS)) {
+        evalResult = cached[storageKey].data;
       } else {
-        // TIER 3: Backend Verification Handshake
-        try {
-          const res = await fetch(`${BACKEND_API}?domain=${encodeURIComponent(domain)}`);
-          if (res.ok) {
-            evalResult = await res.json();
-          } else {
+        // TIER 2: Run Local Heuristic ML
+        const localML = runLocalMLClassification(domain);
+
+        if (localML.score < 45) {
+          evalResult = localML;
+        } else {
+          // TIER 3: Backend API Verification
+          try {
+            const res = await fetch(`${BACKEND_API}?domain=${encodeURIComponent(domain)}`);
+            evalResult = res.ok ? await res.json() : localML;
+          } catch {
             evalResult = localML;
           }
-        } catch {
-          evalResult = localML; // Offline fallback to local ML
         }
+
+        evalResult.displayLabel = `${evalResult.score}`;
+        evalResult.isWhitelisted = false;
+
+        chrome.storage.local.set({
+          [storageKey]: { timestamp: now, data: evalResult }
+        });
       }
     }
 
-    // Set Badge Color based on score
-    if (evalResult.score >= 75) {
+    // Set Extension Badge Icon
+    if (evalResult.isWhitelisted || evalResult.score >= 75) {
       chrome.action.setBadgeText({ tabId: details.tabId, text: '✓' });
-      chrome.action.setBadgeBackgroundColor({ tabId: details.tabId, color: '#10B981' }); // Green
+      chrome.action.setBadgeBackgroundColor({ tabId: details.tabId, color: '#10B981' });
     } else if (evalResult.score >= 45) {
       chrome.action.setBadgeText({ tabId: details.tabId, text: '!' });
-      chrome.action.setBadgeBackgroundColor({ tabId: details.tabId, color: '#F59E0B' }); // Amber
+      chrome.action.setBadgeBackgroundColor({ tabId: details.tabId, color: '#F59E0B' });
     } else {
       chrome.action.setBadgeText({ tabId: details.tabId, text: '✕' });
-      chrome.action.setBadgeBackgroundColor({ tabId: details.tabId, color: '#EF4444' }); // Red
+      chrome.action.setBadgeBackgroundColor({ tabId: details.tabId, color: '#EF4444' });
     }
 
-    // Send payload to Content Script to show UI
+    // Save for popup window
+    chrome.storage.local.set({ [`tab_score_${details.tabId}`]: evalResult });
+
+    // Send to Content Script
     chrome.tabs.sendMessage(details.tabId, {
       action: 'RENDER_SHIELD_UI',
       payload: {
-        score: evalResult.score,
-        verdict: evalResult.verdict,
-        gaps: evalResult.gaps || [],
+        ...evalResult,
         domain,
         fullUrl: details.url,
         dashboardUrl: DASHBOARD_URL

@@ -856,10 +856,23 @@ function App() {
   // Operational Matrix Transition Trackers
   const [isExitingIntro, setIsExitingIntro] = useState(false);
   const handleEnterSystem = () => {
-    setView('loading'); // Moves directly to our standalone dog spinner screen
+    setView('loading');
     setTimeout(() => {
-      setView('landing');
-    }, 3200); // Locked to exactly 3.2s for one complete scamper-around loop cycle
+      // Check if session exists before routing to landing
+      const savedUser = localStorage.getItem('cyvora_user');
+      let parsed = null;
+      try {
+        parsed = savedUser ? JSON.parse(savedUser) : null;
+      } catch (e) {}
+
+      if (parsed && parsed.email) {
+        setEmail(parsed.email);
+        if (parsed.username) setUsername(parsed.username);
+        setView('dashboard');
+      } else {
+        setView('landing');
+      }
+    }, 3200);
   };
   const [dashSubView, setDashSubView] = useState('home');
   // Dynamic Entry/Splash State Gate for Dashboard Home Router
@@ -872,63 +885,80 @@ function App() {
   const [scanReport, setScanResult] = useState(null);
   const [showReport, setShowReport] = useState(false);
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
-// Read URL parameters from Cyvora Shield Extension handoff
+// Centralized Scanner Engine: Used by both manual search and extension handoff
+  const runSecurityScan = async (urlToScan) => {
+    if (!urlToScan) return;
+    setIsScanning(true);
+    setScanResult(null);
+    setScanError(null);
+    setShowConfig(false);
+
+    let progress = 0;
+    const interval = setInterval(() => {
+      progress += 5;
+      setConicPercent(progress);
+      if (progress >= 100) clearInterval(interval);
+    }, 25);
+
+    try {
+      const res = await fetch('http://127.0.0.1:5000/api/scan/url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: urlToScan })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        let finalGrade = "C";
+        let gradeColor = "text-yellow-400 stroke-yellow-400";
+        if (data.score >= 90) { finalGrade = "A"; gradeColor = "text-emerald-400 stroke-emerald-400"; }
+        else if (data.score >= 75) { finalGrade = "B"; gradeColor = "text-cyan-400 stroke-cyan-400"; }
+        else if (data.score < 50) { finalGrade = "F"; gradeColor = "text-red-500 stroke-red-500"; }
+
+        const freshReport = {
+          ...data,
+          grade: finalGrade,
+          gradeColor: gradeColor,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+        };
+        setScanResult(freshReport);
+        setScanHistory(prev => [freshReport, ...prev]);
+      } else {
+        setScanError(data.message || "Target identity signature rejected by DNS lookup routers.");
+      }
+    } catch (err) {
+      setScanError("Unable to establish communication with the Cyvora Core engine port.");
+    } finally {
+      setTimeout(() => setIsScanning(false), 800);
+    }
+  };
+
+  // Read URL parameters from Cyvora Shield Extension handoff
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const incomingUrl = params.get('targetUrl');
     const autoScan = params.get('autoScan');
 
     if (incomingUrl) {
+      // 1. Force instant view switch to Scanner view
+      setView('dashboard');
+      setDashSubView('scanner');
+      setTargetUrl(incomingUrl);
+
+      // 2. Rehydrate session if user credentials exist in storage
       const savedUser = localStorage.getItem('cyvora_user');
-      let parsedUser = null;
-      try {
-        parsedUser = savedUser ? JSON.parse(savedUser) : null;
-      } catch (e) {
-        parsedUser = null;
+      if (savedUser) {
+        try {
+          const parsed = JSON.parse(savedUser);
+          if (parsed?.email) setEmail(parsed.email);
+          if (parsed?.username) setUsername(parsed.username);
+        } catch (e) {}
       }
 
-      if (parsedUser && parsedUser.email) {
-        setEmail(parsedUser.email);
-        if (parsedUser.username) setUsername(parsedUser.username);
-        setView('dashboard');
-        setDashSubView('scanner');
-        setTargetUrl(incomingUrl);
-      } else {
-        setView('landing');
-        handleAuthSwitch('login');
-        return;
-      }
-
-      // Execute live scan on the incoming URL
+      // 3. Trigger auto scan using the unified scanner engine
       if (autoScan === 'true') {
-        const executeHandoffScan = async () => {
-          setIsScanning(true);
-          try {
-            const res = await fetch('http://localhost:5000/api/scan/url', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ url: incomingUrl })
-            });
-            const data = await res.json();
-            if (res.ok) {
-              setScanResult({
-                ...data,
-                grade: data.score >= 90 ? 'A' : data.score >= 75 ? 'B' : data.score < 50 ? 'F' : 'C',
-                gradeColor: data.score >= 90 ? 'text-emerald-400 stroke-emerald-400' : 'text-red-500 stroke-red-500',
-                timestamp: new Date().toLocaleTimeString()
-              });
-            } else {
-              alert(data.message || 'Audit failed to complete');
-            }
-          } catch (err) {
-            console.error('Handoff scan error:', err);
-          } finally {
-            setIsScanning(false);
-          }
-        };
-
-        // Allow React state 300ms to mount the scanner DOM before executing
-        setTimeout(executeHandoffScan, 300);
+        setTimeout(() => {
+          runSecurityScan(incomingUrl);
+        }, 400);
       }
     }
   }, []);
@@ -979,19 +1009,25 @@ function App() {
   // Custom Modal Controller State
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
-  // OPTIMIZATION MATRIX: Combined Asset Preloading & Session Rehydration Engine
+  // Combined Asset Preloading & Session Rehydration Engine
   useEffect(() => {
-    // Suggestion 4: Hardware pre-cache imagery to completely eliminate initial black layout flashes
     const systemImg = new Image();
     systemImg.src = "/luffy_fixed.jpg";
 
-    // Check if a valid 2.5h session already exists in localStorage
-    if (currentUser && currentUser.email) {
-      setEmail(currentUser.email);
-      if (currentUser.username) setUsername(currentUser.username);
-      setView('dashboard');
+    // Immediate LocalStorage Session Auto-Login
+    const savedUser = localStorage.getItem('cyvora_user');
+    if (savedUser) {
+      try {
+        const parsed = JSON.parse(savedUser);
+        if (parsed && parsed.email) {
+          setEmail(parsed.email);
+          if (parsed.username) setUsername(parsed.username);
+          setView('dashboard');
+        }
+      } catch (e) {}
     }
 
+    // Firebase Persistent Auth Listener
     const unsubscribe = auth.onAuthStateChanged((user) => {
       if (user && user.email) {
         setEmail(user.email);
@@ -1001,7 +1037,7 @@ function App() {
     });
 
     return () => unsubscribe();
-  }, [currentUser]);
+  }, []);
   // 📁 INJECTION: COUNTDOWN ENGINE & KEYBOARD FOCUS TRAPS
   useEffect(() => {
     let timer;
@@ -1476,50 +1512,13 @@ const handleVerifyOtp = async () => {
                       />
                     </div>
                     <button
-                      type="button"
-                      disabled={isScanning || !targetUrl}
-                      className="h-12 px-8 font-mono text-xs font-black tracking-widest text-black bg-yellow-500 hover:bg-yellow-400 rounded-xl transition-all duration-300 ease-[cubic-bezier(0.34,1.06,0.5,1)] shadow-lg active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed shrink-0 uppercase cursor-pointer"
-                      onClick={async () => {
-                        setIsScanning(true);
-                        setScanResult(null);
-                        setScanError(null); 
-                        setShowConfig(false);
-                        let progress = 0;
-                        const interval = setInterval(() => {
-                          progress += 5;
-                          setConicPercent(progress);
-                          if (progress >= 100) clearInterval(interval);
-                        }, 25);
-
-                        try {
-                          const res = await fetch('http://127.0.0.1:5000/api/scan/url', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ url: targetUrl })
-                          });
-                          const data = await res.json();
-                          if (res.ok) {
-                            let finalGrade = "C";
-                            let gradeColor = "text-yellow-400 stroke-yellow-400";
-                            if (data.score >= 90) { finalGrade = "A"; gradeColor = "text-emerald-400 stroke-emerald-400"; }
-                            else if (data.score >= 75) { finalGrade = "B"; gradeColor = "text-cyan-400 stroke-cyan-400"; }
-                            else if (data.score < 50) { finalGrade = "F"; gradeColor = "text-red-500 stroke-red-500"; }
-
-                            const freshReport = { ...data, grade: finalGrade, gradeColor: gradeColor, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) };
-                            setScanResult(freshReport);
-                            setScanHistory(prev => [freshReport, ...prev]);
-                          } else {
-                            setScanError(data.message || "Target identity signature rejected by DNS lookup routers.");
-                          }
-                        } catch (err) {
-                          setScanError("Unable to establish communication with the Cyvora Core engine port.");
-                        } finally {
-                          setTimeout(() => setIsScanning(false), 1000);
-                        }
-                      }}
+                    type="button"
+                    disabled={isScanning || !targetUrl}
+                    className="h-12 px-8 font-mono text-xs font-black tracking-widest text-black bg-yellow-500 hover:bg-yellow-400 rounded-xl transition-all duration-300 ease-[cubic-bezier(0.34,1.06,0.5,1)] shadow-lg active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed shrink-0 uppercase cursor-pointer"
+                    onClick={() => runSecurityScan(targetUrl)}
                     >
                       {isScanning ? 'SCANNING SURFACES...' : 'SEARCH '}
-                    </button>
+                      </button>
                   </div>
                 </div>
 
