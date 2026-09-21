@@ -9,7 +9,7 @@ const cors = require('cors');
 const axios = require('axios');
 const tls = require('tls');
 const dnsPromises = require('dns').promises;
-
+const bcrypt = require('bcryptjs');
 const { runFastTriage } = require('./utils/triageEngine');
 const memoryScanCache = new Map();
 
@@ -116,18 +116,60 @@ app.post('/api/auth/signup', async (req, res) => {
 });
 
 // ==========================================
-// ROUTE 2: AUTHENTICATION CHECKPOINT (LOGIN)
+// ROUTE 2: AUTHENTICATION CHECKPOINT (DIRECT PASSWORD LOGIN)
 // ==========================================
 app.post('/api/auth/login', async (req, res) => {
-  const { email, username } = req.body;
-  if (!email || !username) return res.status(400).json({ message: 'Missing parameters.' });
+  const { email, password } = req.body;
+  if (!email || !password) {
+    return res.status(400).json({ message: 'Email and password are required.' });
+  }
 
   const cleanEmail = email.toLowerCase().trim();
-  const cleanUsername = username.trim();
   const user = await User.findOne({ email: cleanEmail });
 
-  if (!user || user.username.toLowerCase() !== cleanUsername.toLowerCase()) {
-    return res.status(401).json({ message: 'Invalid operator credentials clearance.' });
+  if (!user) {
+    return res.status(404).json({ message: 'No registered identity found with this email.' });
+  }
+
+  // Verify password (supports both bcrypt hashed and plain text legacy entries)
+  const isMatch = (user.password.startsWith('$2a$') || user.password.startsWith('$2b$'))
+    ? await bcrypt.compare(password, user.password)
+    : user.password === password;
+
+  if (!isMatch) {
+    return res.status(401).json({ message: 'Invalid credentials. Password verification failed.' });
+  }
+
+  user.lastActive = new Date();
+  await user.save();
+
+  // 2.5-Hour session persistence
+  const sessionExpiresAt = Date.now() + 9000000;
+
+  console.log(`[LOGIN SUCCESS] Direct password clearance approved for: ${cleanEmail}`);
+  return res.status(200).json({
+    message: 'Clearance approved. Access token generated.',
+    user: {
+      id: user._id,
+      email: user.email,
+      username: user.username
+    },
+    sessionExpiresAt
+  });
+});
+
+// ==========================================
+// ROUTE 2.1: FORGOT PASSWORD (OTP DISPATCH)
+// ==========================================
+app.post('/api/auth/forgot-password', async (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ message: 'Email is required.' });
+
+  const cleanEmail = email.toLowerCase().trim();
+  const user = await User.findOne({ email: cleanEmail });
+
+  if (!user) {
+    return res.status(404).json({ message: 'No account registered with this email address.' });
   }
 
   const generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
@@ -135,17 +177,50 @@ app.post('/api/auth/login', async (req, res) => {
 
   activeOTPs.set(cleanEmail, {
     otp: generatedOtp,
-    isSignup: false,
-    expiresAt: expiresAt
+    isReset: true,
+    expiresAt
   });
 
   try {
     await sendOtpEmail(cleanEmail, generatedOtp);
-    console.log(`[EMAIL DISPATCH SUCCESS] Real-time Login OTP delivered to: ${cleanEmail}`);
-    res.status(200).json({ message: 'Authentication challenge OTP dispatched.' });
+    console.log(`[RECOVERY OTP SENT] Reset code dispatched to: ${cleanEmail}`);
+    res.status(200).json({ message: 'Password recovery OTP dispatched.' });
   } catch (error) {
     console.error('[EMAIL DISPATCH FAILURE]', error.message);
-    res.status(500).json({ message: 'Mail server routing failure encountered via Brevo.' });
+    res.status(500).json({ message: 'Mail server routing failure via Brevo.' });
+  }
+});
+
+// ==========================================
+// ROUTE 2.2: RESET PASSWORD (VERIFY & UPDATE)
+// ==========================================
+app.post('/api/auth/reset-password', async (req, res) => {
+  const { email, otp, newPassword } = req.body;
+  const cleanEmail = email?.toLowerCase().trim();
+  const record = activeOTPs.get(cleanEmail);
+
+  if (!record || !record.isReset) {
+    return res.status(400).json({ message: 'No active password reset session found.' });
+  }
+  if (Date.now() > record.expiresAt) {
+    activeOTPs.delete(cleanEmail);
+    return res.status(401).json({ message: 'Reset token has expired.' });
+  }
+  if (record.otp !== otp?.trim()) {
+    return res.status(401).json({ message: 'Invalid reset token entry.' });
+  }
+
+  try {
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+    await User.findOneAndUpdate({ email: cleanEmail }, { password: hashedPassword });
+    activeOTPs.delete(cleanEmail);
+
+    console.log(`[PASSWORD RESET SUCCESS] Credentials updated for: ${cleanEmail}`);
+    res.status(200).json({ message: 'Passcode updated successfully.' });
+  } catch (err) {
+    res.status(500).json({ message: 'Database failure updating credentials.' });
   }
 });
 

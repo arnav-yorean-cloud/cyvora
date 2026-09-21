@@ -838,6 +838,7 @@ function App() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
   const [passwordError, setPasswordError] = useState(false);
   const [loginError, setLoginError] = useState(false);
   const [otpError, setOtpError] = useState(false);
@@ -1097,17 +1098,18 @@ function App() {
     }
   };
 const handleAuthSwitch = (mode) => {
-    setAuthMode(mode);
+    setAuthMode(mode); // 'login' | 'signup' | 'forgot'
     setAuthStep(1);
     setPassword('');
     setConfirmPassword('');
-    setOtpArray(new Array(6).fill('')); // Clear array tracking state
+    setNewPassword('');
+    setOtpArray(new Array(6).fill(''));
     setPasswordError(false);
     setLoginError(false);
     setOtpError(false);
-    setEmailFormatError(false);    // Clear task 1 flag
-    setEmailNotRegistered(false);  // Clear task 5 flag
-    setIsSubmitting(false);        // Free lock anchors
+    setEmailFormatError(false);
+    setEmailNotRegistered(false);
+    setIsSubmitting(false);
     setShowPassword(false);
     setShowConfirmPassword(false);
     setUsername('');
@@ -1163,88 +1165,118 @@ const handleSubmitCredentials = async () => {
     setEmailFormatError(false);
     setEmailNotRegistered(false);
 
-    // Enforce email and username presence
-    if (!email || !username) {
-      alert('Provide Email and Username to initialize token dispatch routing');
+    if (!email) {
+      alert('Please specify a valid email address.');
       return;
     }
 
-    // Task 1: Enforce Structural Regex Footprint Checks
     const genuineEmailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
     if (!genuineEmailRegex.test(email)) {
       setEmailFormatError(true);
       return;
     }
 
-    // Signup-only credential validations
+    // MODE 1: DIRECT EMAIL + PASSWORD LOGIN (ZERO ROUTINE OTP)
+    if (authMode === 'login') {
+      if (!password) {
+        alert('Please enter your account password.');
+        return;
+      }
+
+      setIsSubmitting(true);
+      try {
+        const response = await fetch('http://localhost:5000/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+        const data = await response.json();
+
+        if (!response.ok) {
+          if (response.status === 404) setEmailNotRegistered(true);
+          else setLoginError(true);
+          return;
+        }
+
+        loginSession(data.user, data.sessionExpiresAt);
+        setEmail(data.user.email);
+        setUsername(data.user.username);
+        setView('dashboard');
+      } catch (error) {
+        alert('Communication failed with Cyvora authentication node.');
+      } finally {
+        setIsSubmitting(false);
+      }
+      return;
+    }
+
+    // MODE 2: FORGOT PASSWORD (DISPATCH RECOVERY OTP)
+    if (authMode === 'forgot') {
+      setIsSubmitting(true);
+      try {
+        const response = await fetch('http://localhost:5000/api/auth/forgot-password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email })
+        });
+        const data = await response.json();
+
+        if (!response.ok) {
+          if (response.status === 404) setEmailNotRegistered(true);
+          else alert(data.message || 'Password recovery dispatch failed.');
+          return;
+        }
+
+        setAuthStep(2);
+        setCooldown(60);
+      } catch (error) {
+        alert('Mail server routing failure encountered.');
+      } finally {
+        setIsSubmitting(false);
+      }
+      return;
+    }
+
+    // MODE 3: ACCOUNT REGISTRATION (VALIDATE & DISPATCH SIGNUP OTP)
     if (authMode === 'signup') {
-      if (!age || !gender) {
-        alert('Please specify your age and gender to complete profile initialization.');
+      if (!username || !age || !gender) {
+        alert('Please specify username, age, and gender.');
         return;
       }
       if (!password || !confirmPassword) {
-        alert('Please specify and confirm your account passcode.');
+        alert('Please specify and confirm your passcode.');
         return;
       }
       if (password !== confirmPassword) {
         setPasswordError(true);
         return;
       }
-    }
 
-    // Task 2: Initialize Server API Submission Lockout
-    setIsSubmitting(true);
+      setIsSubmitting(true);
+      try {
+        const response = await fetch('http://localhost:5000/api/auth/signup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password, username, age, gender })
+        });
+        const data = await response.json();
 
-    try {
-      const endpoint = authMode === 'login' ? '/api/auth/login' : '/api/auth/signup';
-      const payload = authMode === 'login' 
-        ? { email, username }
-        : { email, password, username, age, gender };
-
-      const response = await fetch(`http://localhost:5000${endpoint}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        if (authMode === 'login') {
-          // Task 5: Check whether email exists or username is wrong
-          try {
-            const checkResponse = await fetch(`http://localhost:5000/api/auth/signup`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ email, password: 'dummy_gate_pass', username: 'dummy_gate_user', age: '99', gender: 'Other' })
-            });
-            const checkData = await checkResponse.json();
-            
-            if (checkResponse.status === 400 || (checkData.message && checkData.message.toLowerCase().includes('registered'))) {
-              setLoginError(true);
-            } else {
-              setEmailNotRegistered(true);
-            }
-          } catch (gateError) {
-            setLoginError(true);
-          }
-        } else {
+        if (!response.ok) {
           if (data.message && data.message.toLowerCase().includes('username')) {
             setUsernameError(true);
           } else {
-            alert(`Security Node Error: ${data.message || 'Registration failure encountered.'}`);
+            alert(`Registration Error: ${data.message || 'Registration rejected.'}`);
           }
+          return;
         }
-        return;
-      }
 
-      setAuthStep(2); 
-      setCooldown(60); // Task 4: Fire 60s spam guard clock on success
-    } catch (error) {
-      console.error("Cyvora Core Node Communications Fault Isolation Trace:", error);
-      alert('⚠️ NODE OFFLINE ERROR: Communication handshake failed. Verify that your local backend endpoint node is active on port 5000 and try again.');
-    } finally {
-      setIsSubmitting(false);
+        setAuthStep(2);
+        setCooldown(60);
+      } catch (error) {
+        alert('Communication handshake failed with local backend.');
+      } finally {
+        setIsSubmitting(false);
+      }
     }
   };
 
@@ -1260,6 +1292,32 @@ const handleVerifyOtp = async () => {
     setIsSubmitting(true);
 
     try {
+      // BRANCH A: FORGOT PASSWORD RECOVERY
+      if (authMode === 'forgot') {
+        if (!newPassword || newPassword.length < 6) {
+          alert('Enter a new password of at least 6 characters.');
+          setIsSubmitting(false);
+          return;
+        }
+
+        const response = await fetch('http://localhost:5000/api/auth/reset-password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, otp: combinedOtp, newPassword })
+        });
+        const data = await response.json();
+
+        if (!response.ok) {
+          setOtpError(true);
+          return;
+        }
+
+        alert('Password successfully reset! Please login with your new credentials.');
+        handleAuthSwitch('login');
+        return;
+      }
+
+      // BRANCH B: SIGNUP OTP VERIFICATION
       const response = await fetch('http://localhost:5000/api/auth/verify-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1269,14 +1327,15 @@ const handleVerifyOtp = async () => {
       const data = await response.json();
 
       if (!response.ok) {
-        setOtpError(true); 
+        setOtpError(true);
         return;
       }
 
       if (data.sessionExpiresAt) {
         loginSession(data.user, data.sessionExpiresAt);
       }
-
+      setEmail(data.user?.email || email);
+      setUsername(data.user?.username || username);
       setView('dashboard');
     } catch (error) {
       alert('Network transmission error communicating verification signatures.');
@@ -2853,10 +2912,14 @@ const handleVerifyOtp = async () => {
       <div className="w-full max-w-xl mx-auto my-auto py-8 space-y-6 animate-fadeIn">
         <div className="text-center space-y-2">
           <h2 className="text-3xl font-black tracking-wider uppercase font-mono text-white">
-            {authStep === 1 ? (authMode === 'login' ? 'Welcome Back!' : 'Create Account') : 'Secure Verification'}
+            {authStep === 1 
+              ? (authMode === 'login' ? 'Welcome Back!' : (authMode === 'forgot' ? 'Reset Passcode' : 'Create Account')) 
+              : (authMode === 'forgot' ? 'Set New Passcode' : 'Secure Verification')}
           </h2>
           <p className="text-xs font-mono text-slate-400 tracking-wide">
-            {authStep === 1 ? (authMode === 'login' ? 'Login with verified terminal credentials' : 'Enter your credentials to initialize profile') : 'Multiphase authentication entry token'}
+            {authStep === 1 
+              ? (authMode === 'login' ? 'Enter email and password for direct access' : (authMode === 'forgot' ? 'Enter email to receive 6-digit recovery OTP' : 'Enter credentials to initialize profile')) 
+              : (authMode === 'forgot' ? 'Enter OTP code sent to your email and your new password' : 'Enter 6-digit authentication token')}
           </p>
         </div>
 
@@ -2864,44 +2927,37 @@ const handleVerifyOtp = async () => {
           {authStep === 1 ? (
             <div className="space-y-5 animate-fadeIn">
 
-              {/* FLOATING LABEL: OPERATOR USERNAME (Present on Both Login & Signup) */}
-              <div className="relative w-full group animate-fadeIn">
-                <input 
-                  type="text" 
-                  id="fi-username"
-                  placeholder=" "
-                  value={username}
-                  disabled={isSubmitting}
-                  onChange={(e) => { setUsername(e.target.value); setUsernameError(false); setLoginError(false); }}
-                  className={`w-full h-12 pt-5 pb-1 px-4 text-sm text-black bg-white rounded-xl border-2 outline-none transition-all duration-200 peer placeholder:text-slate-400 ${
-                    usernameError || (authMode === 'login' && loginError)
-                      ? 'border-red-500 ring-2 ring-red-500/10 shadow-[0_0_15px_rgba(239,68,68,0.2)] animate-shake' 
-                      : 'border-white focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20'
-                  }`}
-                />
-                <label 
-                  htmlFor="fi-username"
-                  className={`absolute left-4 font-mono font-bold tracking-wider pointer-events-none transition-all duration-200 origin-left ${
-                    username 
-                      ? 'top-1.5 text-[10px] text-purple-600' 
-                      : 'top-3.5 text-xs text-slate-500 peer-focus:top-1.5 peer-focus:text-[10px] peer-focus:text-purple-600'
-                  }`}
-                >
-                  USERNAME
-                </label>
-                {usernameError && (
-                  <span className="text-[10px] font-mono font-bold text-red-400 tracking-wide mt-1 block text-left uppercase">
-                    ⚠ Signature footprint mismatch: Handle taken
-                  </span>
-                )}
-                {loginError && authMode === 'login' && (
-                  <span className="text-[10px] font-mono font-bold text-red-400 tracking-wide mt-1 block text-left uppercase">
-                    ⚠ Credentials mismatch: Email and Username pair not verified
-                  </span>
-                )}
-              </div>
+              {/* USERNAME (Sirf SIGNUP ke time dikhega) */}
+              {authMode === 'signup' && (
+                <div className="relative w-full group animate-fadeIn">
+                  <input 
+                    type="text" 
+                    id="fi-username"
+                    placeholder=" "
+                    value={username}
+                    disabled={isSubmitting}
+                    onChange={(e) => { setUsername(e.target.value); setUsernameError(false); }}
+                    className={`w-full h-12 pt-5 pb-1 px-4 text-sm text-black bg-white rounded-xl border-2 outline-none transition-all duration-200 peer placeholder:text-slate-400 ${
+                      usernameError ? 'border-red-500 ring-2 ring-red-500/10' : 'border-white focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20'
+                    }`}
+                  />
+                  <label 
+                    htmlFor="fi-username"
+                    className={`absolute left-4 font-mono font-bold tracking-wider pointer-events-none transition-all duration-200 origin-left ${
+                      username ? 'top-1.5 text-[10px] text-purple-600' : 'top-3.5 text-xs text-slate-500 peer-focus:top-1.5 peer-focus:text-[10px] peer-focus:text-purple-600'
+                    }`}
+                  >
+                    USERNAME
+                  </label>
+                  {usernameError && (
+                    <span className="text-[10px] font-mono font-bold text-red-400 tracking-wide mt-1 block text-left uppercase">
+                      ⚠ Signature footprint mismatch: Handle taken
+                    </span>
+                  )}
+                </div>
+              )}
               
-              {/* FLOATING LABEL: EMAIL ADDRESS */}
+              {/* EMAIL ADDRESS */}
               <div className="relative w-full group">
                 <input 
                   type="email" 
@@ -2919,9 +2975,7 @@ const handleVerifyOtp = async () => {
                 <label 
                   htmlFor="fi-email"
                   className={`absolute left-4 font-mono font-bold tracking-wider pointer-events-none transition-all duration-200 origin-left ${
-                    email 
-                      ? 'top-1.5 text-[10px] text-purple-600' 
-                      : 'top-3.5 text-xs text-slate-500 peer-focus:top-1.5 peer-focus:text-[10px] peer-focus:text-purple-600'
+                    email ? 'top-1.5 text-[10px] text-purple-600' : 'top-3.5 text-xs text-slate-500 peer-focus:top-1.5 peer-focus:text-[10px] peer-focus:text-purple-600'
                   }`}
                 >
                   EMAIL ADDRESS
@@ -2956,9 +3010,7 @@ const handleVerifyOtp = async () => {
                     <label 
                       htmlFor="fi-age"
                       className={`absolute left-4 font-mono font-bold tracking-wider pointer-events-none transition-all duration-200 origin-left ${
-                        age 
-                          ? 'top-1.5 text-[10px] text-purple-600' 
-                          : 'top-3.5 text-xs text-slate-500 peer-focus:top-1.5 peer-focus:text-[10px] peer-focus:text-purple-600'
+                        age ? 'top-1.5 text-[10px] text-purple-600' : 'top-3.5 text-xs text-slate-500 peer-focus:top-1.5 peer-focus:text-[10px] peer-focus:text-purple-600'
                       }`}
                     >
                       AGE
@@ -2988,103 +3040,96 @@ const handleVerifyOtp = async () => {
                 </div>
               )}
 
-              {/* SIGNUP-ONLY FIELDS: PASSWORD & CONFIRM PASSWORD */}
-              {authMode === 'signup' && (
-                <>
+              {/* PASSWORD (Login aur Signup dono mein dikhega) */}
+              {authMode !== 'forgot' && (
+                <div className="space-y-1 text-left">
                   <div className="relative w-full">
-                    <div className="relative w-full">
-                      <input 
-                        type={showPassword ? 'text' : 'password'} 
-                        id="fi-password"
-                        placeholder=" "
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        className="w-full h-12 pt-5 pb-1 pl-4 pr-14 text-sm text-black bg-white rounded-xl border-2 border-white focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all peer"
-                      />
-                      <label 
-                        htmlFor="fi-password"
-                        className={`absolute left-4 font-mono font-bold tracking-wider pointer-events-none transition-all duration-200 origin-left ${
-                          password 
-                            ? 'top-1.5 text-[10px] text-purple-600' 
-                            : 'top-3.5 text-xs text-slate-500 peer-focus:top-1.5 peer-focus:text-[10px] peer-focus:text-purple-600'
-                        }`}
-                      >
-                        PASSWORD
-                      </label>
-                      <button 
-                        type="button" 
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="absolute inset-y-0 right-0 pr-4 flex items-center text-[10px] text-slate-600 hover:text-black transition-colors font-mono font-bold cursor-pointer bg-transparent"
-                      >
-                        {showPassword ? 'MASK' : 'VIEW'}
-                      </button>
-                    </div>
-
-                    {/* DYNAMIC MULTI-SEGMENT STRENGTH VISUAL MATRIX */}
-                    {password.length > 0 && (
-                      <div className="mt-3 space-y-1.5 animate-fadeIn text-left">
-                        <div className="flex gap-1.5 h-1.5">
-                          {[1, 2, 3, 4].map((step) => {
-                            const score = [password.length >= 8, /[a-z]/.test(password) && /[A-Z]/.test(password), /\d/.test(password), /[^a-zA-Z0-9]/.test(password)].filter(Boolean).length;
-                            let segmentColor = 'bg-white/20';
-                            if (step <= score) {
-                              if (score === 1) segmentColor = 'bg-red-500 shadow-[0_0_8px_#ef4444]';
-                              if (score === 2) segmentColor = 'bg-orange-500 shadow-[0_0_8px_#f97316]';
-                              if (score === 3) segmentColor = 'bg-yellow-500 shadow-[0_0_8px_#eab308]';
-                              if (score === 4) segmentColor = 'bg-emerald-500 shadow-[0_0_8px_#10b981]';
-                            }
-                            return <div key={step} className={`flex-1 rounded-full transition-all duration-300 ${segmentColor}`} />;
-                          })}
-                        </div>
-                        <span className="text-[9px] font-mono font-bold uppercase tracking-widest text-left block text-slate-400">
-                          STRENGTH: {
-                            [password.length >= 8, /[a-z]/.test(password) && /[A-Z]/.test(password), /\d/.test(password), /[^a-zA-Z0-9]/.test(password)].filter(Boolean).length === 4 ? '🟢 SECURE-STRONG' :
-                            [password.length >= 8, /[a-z]/.test(password) && /[A-Z]/.test(password), /\d/.test(password), /[^a-zA-Z0-9]/.test(password)].filter(Boolean).length === 3 ? '🟡 STABLE BOUNDARY' :
-                            [password.length >= 8, /[a-z]/.test(password) && /[A-Z]/.test(password), /\d/.test(password), /[^a-zA-Z0-9]/.test(password)].filter(Boolean).length === 2 ? '🟠 MODERATE RISK' : '🔴 EXPOSED ATTACK SURFACE'
-                          }
-                        </span>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* FLOATING LABEL: CONFIRM PASSWORD */}
-                  <div className="relative w-full group animate-fadeIn text-left">
                     <input 
-                      type={showConfirmPassword ? 'text' : 'password'} 
-                      id="fi-confirm"
+                      type={showPassword ? 'text' : 'password'} 
+                      id="fi-password"
                       placeholder=" "
-                      value={confirmPassword}
-                      onChange={(e) => { setConfirmPassword(e.target.value); setPasswordError(false); }}
-                      className={`w-full h-12 pt-5 pb-1 pl-4 pr-14 text-sm text-black bg-white rounded-xl border-2 outline-none transition-all duration-200 peer ${
-                        passwordError 
-                          ? 'border-red-500 animate-shake ring-2 ring-red-500/20' 
+                      value={password}
+                      disabled={isSubmitting}
+                      onChange={(e) => { setPassword(e.target.value); setLoginError(false); }}
+                      className={`w-full h-12 pt-5 pb-1 pl-4 pr-14 text-sm text-black bg-white rounded-xl border-2 outline-none transition-all peer ${
+                        loginError && authMode === 'login' 
+                          ? 'border-red-500 ring-2 ring-red-500/20 animate-shake' 
                           : 'border-white focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20'
                       }`}
                     />
                     <label 
-                      htmlFor="fi-confirm"
+                      htmlFor="fi-password"
                       className={`absolute left-4 font-mono font-bold tracking-wider pointer-events-none transition-all duration-200 origin-left ${
-                        confirmPassword 
-                          ? 'top-1.5 text-[10px] text-purple-600' 
-                          : 'top-3.5 text-xs text-slate-500 peer-focus:top-1.5 peer-focus:text-[10px] peer-focus:text-purple-600'
+                        password ? 'top-1.5 text-[10px] text-purple-600' : 'top-3.5 text-xs text-slate-500 peer-focus:top-1.5 peer-focus:text-[10px] peer-focus:text-purple-600'
                       }`}
                     >
-                      CONFIRM PASSWORD
+                      PASSWORD
                     </label>
                     <button 
                       type="button" 
-                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      onClick={() => setShowPassword(!showPassword)}
                       className="absolute inset-y-0 right-0 pr-4 flex items-center text-[10px] text-slate-600 hover:text-black transition-colors font-mono font-bold cursor-pointer bg-transparent"
                     >
-                      {showConfirmPassword ? 'MASK' : 'VIEW'}
+                      {showPassword ? 'MASK' : 'VIEW'}
                     </button>
-                    {passwordError && (
-                      <span className="text-[10px] font-mono font-bold text-red-400 tracking-wide mt-1 block text-left uppercase">
-                        ⚠ Symmetry fault: Passwords do not match
-                      </span>
-                    )}
                   </div>
-                </>
+                  
+                  {loginError && authMode === 'login' && (
+                    <span className="text-[10px] font-mono font-bold text-red-400 tracking-wide mt-1 block uppercase">
+                      ⚠ Invalid password signature for this account
+                    </span>
+                  )}
+
+                  {authMode === 'login' && (
+                    <div className="text-right pt-1">
+                      <button
+                        type="button"
+                        onClick={() => handleAuthSwitch('forgot')}
+                        className="text-[11px] font-mono text-purple-400 hover:underline cursor-pointer bg-transparent border-none p-0"
+                      >
+                        Forgot Password?
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* CONFIRM PASSWORD (Sirf SIGNUP ke time dikhega) */}
+              {authMode === 'signup' && (
+                <div className="relative w-full group animate-fadeIn text-left">
+                  <input 
+                    type={showConfirmPassword ? 'text' : 'password'} 
+                    id="fi-confirm"
+                    placeholder=" "
+                    value={confirmPassword}
+                    onChange={(e) => { setConfirmPassword(e.target.value); setPasswordError(false); }}
+                    className={`w-full h-12 pt-5 pb-1 pl-4 pr-14 text-sm text-black bg-white rounded-xl border-2 outline-none transition-all duration-200 peer ${
+                      passwordError 
+                        ? 'border-red-500 animate-shake ring-2 ring-red-500/20' 
+                        : 'border-white focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20'
+                    }`}
+                  />
+                  <label 
+                    htmlFor="fi-confirm"
+                    className={`absolute left-4 font-mono font-bold tracking-wider pointer-events-none transition-all duration-200 origin-left ${
+                      confirmPassword ? 'top-1.5 text-[10px] text-purple-600' : 'top-3.5 text-xs text-slate-500 peer-focus:top-1.5 peer-focus:text-[10px] peer-focus:text-purple-600'
+                    }`}
+                  >
+                    CONFIRM PASSWORD
+                  </label>
+                  <button 
+                    type="button" 
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute inset-y-0 right-0 pr-4 flex items-center text-[10px] text-slate-600 hover:text-black transition-colors font-mono font-bold cursor-pointer bg-transparent"
+                  >
+                    {showConfirmPassword ? 'MASK' : 'VIEW'}
+                  </button>
+                  {passwordError && (
+                    <span className="text-[10px] font-mono font-bold text-red-400 tracking-wide mt-1 block text-left uppercase">
+                      ⚠ Symmetry fault: Passwords do not match
+                    </span>
+                  )}
+                </div>
               )}
 
               {/* MORPHING SUBMIT TRIGGER BUTTON */}
@@ -3104,31 +3149,35 @@ const handleVerifyOtp = async () => {
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                   </svg>
                 ) : (
-                  <span>VERIFY →</span>
+                  <span>{authMode === 'login' ? 'LOGIN TO SYSTEM →' : (authMode === 'forgot' ? 'SEND RESET OTP →' : 'REGISTER & VERIFY →')}</span>
                 )}
               </button>
 
-              <div className="relative flex py-2 items-center select-none">
-                <div className="flex-grow border-t border-white/20" />
-                <span className="flex-shrink mx-4 text-slate-500 text-[12px] font-mono tracking-widest uppercase">OR CONTINUE WITH</span>
-                <div className="flex-grow border-t border-white/20" />
-              </div>
-
               {/* SECURE GOOGLE AUTH BUTTON */}
-              <button
-                type="button"
-                disabled={isSubmitting}
-                onClick={handleGoogleAuth}
-                className="w-full h-12 rounded-xl border border-white/20 hover:border-white bg-black hover:bg-white/5 py-3 text-xs font-mono font-bold tracking-wider text-white transition-all flex items-center justify-center gap-3 shadow-md cursor-pointer active:scale-[0.98] disabled:opacity-40"
-              >
-                <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
-                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.43-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22l.81-.63z"/>
-                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
-                </svg>
-                CONTINUE WITH GOOGLE
-              </button>
+              {authMode !== 'forgot' && (
+                <>
+                  <div className="relative flex py-2 items-center select-none">
+                    <div className="flex-grow border-t border-white/20" />
+                    <span className="flex-shrink mx-4 text-slate-500 text-[12px] font-mono tracking-widest uppercase">OR CONTINUE WITH</span>
+                    <div className="flex-grow border-t border-white/20" />
+                  </div>
+
+                  <button
+                    type="button"
+                    disabled={isSubmitting}
+                    onClick={handleGoogleAuth}
+                    className="w-full h-12 rounded-xl border border-white/20 hover:border-white bg-black hover:bg-white/5 py-3 text-xs font-mono font-bold tracking-wider text-white transition-all flex items-center justify-center gap-3 shadow-md cursor-pointer active:scale-[0.98] disabled:opacity-40"
+                  >
+                    <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
+                      <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                      <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                      <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.43-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22l.81-.63z"/>
+                      <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+                    </svg>
+                    CONTINUE WITH GOOGLE
+                  </button>
+                </>
+              )}
             </div>
           ) : (
             /* STEP 2: 6-DIGIT OTP VERIFICATION */
@@ -3137,7 +3186,7 @@ const handleVerifyOtp = async () => {
                 We've routed a 6-digit code straight to <span className="text-white font-bold underline">{email}</span>.
               </div>
 
-              {/* Task 3: 6-Box Array System */}
+              {/* 6-Box Array System */}
               <div className="flex flex-col gap-2 text-left">
                 <label className="text-xs font-semibold uppercase tracking-wider text-slate-400 text-center md:text-left font-mono">
                   Enter Verification Token
@@ -3168,6 +3217,23 @@ const handleVerifyOtp = async () => {
                 )}
               </div>
 
+              {/* FORGOT PASSWORD: NEW PASSWORD INPUT */}
+              {authMode === 'forgot' && (
+                <div className="space-y-1 text-left animate-fadeIn">
+                  <label className="text-xs font-semibold uppercase tracking-wider text-slate-400 font-mono">
+                    Enter New Password
+                  </label>
+                  <input
+                    type="password"
+                    placeholder="At least 6 characters"
+                    value={newPassword}
+                    disabled={isSubmitting}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    className="w-full h-12 px-4 text-sm text-black bg-white rounded-xl border-2 border-white focus:border-purple-500 outline-none font-mono"
+                  />
+                </div>
+              )}
+
               <button 
                 type="submit"
                 onClick={handleVerifyOtp}
@@ -3182,7 +3248,7 @@ const handleVerifyOtp = async () => {
                     VERIFYING...
                   </>
                 ) : (
-                  'Verify & Login'
+                  authMode === 'forgot' ? 'Set New Password & Login' : 'Verify & Complete Registration'
                 )}
               </button>
 
@@ -3196,7 +3262,6 @@ const handleVerifyOtp = async () => {
                   ← BACK
                 </button>
                 
-                {/* Task 4: Rate-Limiter Resend Button */}
                 <button 
                   type="button" 
                   onClick={handleSubmitCredentials}
@@ -3216,18 +3281,27 @@ const handleVerifyOtp = async () => {
 
         {authStep === 1 && (
           <div className="mt-6 border-t border-white/20 pt-4 text-center text-xs text-slate-400 font-mono">
-            {authMode === 'login' ? (
+            {authMode === 'login' && (
               <p>
-                New User? Create Account First---{' '}
+                New User? Create Account First —{' '}
                 <button onClick={() => handleAuthSwitch('signup')} className="text-purple-400 font-bold hover:underline cursor-pointer ml-1">
                   SIGN UP
                 </button>
               </p>
-            ) : (
+            )}
+            {authMode === 'signup' && (
               <p>
-                Already have an account? Then login---{' '}
+                Already have an account? Then login —{' '}
                 <button onClick={() => handleAuthSwitch('login')} className="text-purple-400 font-bold hover:underline cursor-pointer ml-1">
                   LOGIN
+                </button>
+              </p>
+            )}
+            {authMode === 'forgot' && (
+              <p>
+                Remembered your passcode? —{' '}
+                <button onClick={() => handleAuthSwitch('login')} className="text-purple-400 font-bold hover:underline cursor-pointer ml-1">
+                  RETURN TO LOGIN
                 </button>
               </p>
             )}
