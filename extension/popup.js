@@ -17,7 +17,8 @@ chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
         scoreElem.className = 'score score-green';
       } else {
         scoreElem.innerText = `${data.score}/100`;
-        scoreElem.className = data.score >= 75 ? 'score score-green' : (data.score >= 45 ? 'score' : 'score score-red');
+        scoreElem.cl
+        assName = data.score >= 75 ? 'score score-green' : (data.score >= 45 ? 'score' : 'score score-red');
       }
     } else {
       scoreElem.innerText = 'MONITORING';

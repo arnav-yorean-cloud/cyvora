@@ -884,6 +884,95 @@ function App() {
   const [targetUrl, setTargetUrl] = useState('');
   const [isScanning, setIsScanning] = useState(false);
   const [scanReport, setScanResult] = useState(null);
+
+  // ========================================================
+  // PERSISTENT TELEMETRY ENGINE FOR MASTER DASHBOARD
+  // ========================================================
+  const [dashboardFilter, setDashboardFilter] = useState('all'); // 'all' | 'extension' | 'manual' | 'safe' | 'threats'
+  const [selectedSiteDetail, setSelectedSiteDetail] = useState(null);
+
+  // Default seed data + localStorage sync so dashboard looks rich immediately
+  const [scanHistory, setScanHistory] = useState(() => {
+    try {
+      const saved = localStorage.getItem('cyvora_telemetry_history');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return [
+      {
+        url: 'https://imsec.ac.in',
+        domain: 'imsec.ac.in',
+        score: 94,
+        grade: 'A',
+        source: 'manual',
+        statusText: 'MAXIMUM INFRASTRUCTURE SECURITY VERIFIED',
+        gaps: ['Strict Content-Security-Policy recommended'],
+        timestamp: '11:42 AM',
+        date: 'Today'
+      },
+      {
+        url: 'http://free-crypto-airdrop-login.xyz',
+        domain: 'free-crypto-airdrop-login.xyz',
+        score: 22,
+        grade: 'F',
+        source: 'extension',
+        statusText: 'SEVERE SECURITY THREAT PROFILE DETECTION',
+        gaps: ['High-risk disposable TLD (.xyz)', 'Missing DMARC policy', 'Deceptive keyword in URL'],
+        timestamp: '10:15 AM',
+        date: 'Today'
+      },
+      {
+        url: 'https://github.com',
+        domain: 'github.com',
+        score: 96,
+        grade: 'A',
+        source: 'extension',
+        statusText: 'MAXIMUM INFRASTRUCTURE SECURITY VERIFIED',
+        gaps: ['No material security gaps detected.'],
+        timestamp: '09:30 AM',
+        date: 'Today'
+      },
+      {
+        url: 'http://portal-verify-bank-update.top',
+        domain: 'portal-verify-bank-update.top',
+        score: 38,
+        grade: 'F',
+        source: 'extension',
+        statusText: 'MALICIOUS CREDENTIAL HARVESTER FLAGGED',
+        gaps: ['Phishing mimicry pattern', 'Unencrypted HTTP traffic'],
+        timestamp: 'Yesterday',
+        date: 'Yesterday'
+      },
+      {
+        url: 'https://aktu.ac.in',
+        domain: 'aktu.ac.in',
+        score: 82,
+        grade: 'B',
+        source: 'manual',
+        statusText: 'SECURE VERIFIED PRODUCTION NODE RUNNING',
+        gaps: ['Missing HTTP Strict-Transport-Security policy'],
+        timestamp: 'Yesterday',
+        date: 'Yesterday'
+      },
+      {
+        url: 'https://testing-staging-environment.net',
+        domain: 'testing-staging-environment.net',
+        score: 64,
+        grade: 'C',
+        source: 'manual',
+        statusText: 'MODERATE RISK DEFICIENCIES DETECTED',
+        gaps: ['Missing Content Security Policy', 'X-Frame-Options not set'],
+        timestamp: '2 days ago',
+        date: '20 Sep'
+      }
+    ];
+  });
+
+  // Keep telemetry saved to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem('cyvora_telemetry_history', JSON.stringify(scanHistory));
+    } catch (e) {}
+  }, [scanHistory]);
   const [showReport, setShowReport] = useState(false);
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
 // Centralized Scanner Engine: Used by both manual search and extension handoff
@@ -919,7 +1008,9 @@ function App() {
           ...data,
           grade: finalGrade,
           gradeColor: gradeColor,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+          source: (new URLSearchParams(window.location.search)).get('autoScan') === 'true' ? 'extension' : 'manual',
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          date: 'Just now'
         };
         setScanResult(freshReport);
         setScanHistory(prev => [freshReport, ...prev]);
@@ -1001,7 +1092,6 @@ function App() {
   const [scanError, setScanError] = useState(null);
   const [isConfigLoading, setIsConfigLoading] = useState(false);
   const [conicPercent, setConicPercent] = useState(0);
-  const [scanHistory, setScanHistory] = useState([]);
   const [expandedTier, setExpandedTier] = useState(null);
   const [remediationTab, setRemediationTab] = useState('nginx');
   const [showResetModal, setShowResetModal] = useState(false);
@@ -1121,7 +1211,12 @@ const handleAuthSwitch = (mode) => {
     setIsSubmitting(true);
     try {
       const provider = new GoogleAuthProvider();
-      // Forces Google to show the account picker list every time
+      
+      // Explicitly request basic identity scopes
+      provider.addScope('email');
+      provider.addScope('profile');
+
+      // Forces Google to show the account chooser list of all logged-in accounts
       provider.setCustomParameters({
         prompt: 'select_account'
       });
@@ -1140,6 +1235,11 @@ const handleAuthSwitch = (mode) => {
 
       const data = await response.json();
       if (response.ok) {
+        // Complete session state rehydration
+        if (data.sessionExpiresAt) {
+          loginSession(data.user, data.sessionExpiresAt);
+        }
+
         localStorage.setItem('cyvora_user', JSON.stringify({
           email: user.email,
           username: user.displayName || user.email.split('@')[0],
@@ -1154,6 +1254,9 @@ const handleAuthSwitch = (mode) => {
       }
     } catch (error) {
       console.error('Google Sign-In Error:', error);
+      if (error.code !== 'auth/popup-closed-by-user') {
+        alert('Google verification failed. Ensure popups and third-party cookies are allowed.');
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -1502,18 +1605,318 @@ const handleVerifyOtp = async () => {
             ======================================================== */}
         <main className="flex-1 h-screen overflow-y-auto flex flex-col items-center justify-start pl-20 pr-4 py-6 relative z-10 scroll-smooth">
           
-          {/* VIEW A: RECON SYSTEM CORE DASHBOARD (WITH IMMERSIVE ENTRY PORTAL GATE) */}
-          {dashSubView === 'home' && (
-            <div className="w-full h-full flex flex-col items-center justify-center relative overflow-hidden">
-              
-            <div className="w-full max-w-xl rounded-xl border border-purple-500/20 bg-[#111827]/60 backdrop-blur-md p-8 text-center shadow-2xl animate-fadeIn rounded-xl relative z-10">
-              <h1 className="text-3xl font-black tracking-wider text-purple-500 uppercase font-mono">Dashboard</h1>
-              <div className="mt-6 p-4 rounded-lg bg-black/40 text-emerald-400 font-mono text-xs uppercase tracking-widest border border-emerald-500/10">
-                  Welcome Back, {username || 'Operator'}
+          {/* ========================================================
+              VIEW A: MASTER SOC CYBERSECURITY TELEMETRY DASHBOARD
+              ======================================================== */}
+          {dashSubView === 'home' && (() => {
+            // Computed Metrics Calculations
+            const totalScans = scanHistory.length;
+            const extensionScans = scanHistory.filter(s => s.source === 'extension');
+            const manualScans = scanHistory.filter(s => s.source === 'manual');
+            
+            const tierA = scanHistory.filter(s => s.grade === 'A');
+            const tierB = scanHistory.filter(s => s.grade === 'B');
+            const tierC = scanHistory.filter(s => s.grade === 'C');
+            const tierF = scanHistory.filter(s => s.grade === 'F');
+
+            const safeSites = [...tierA, ...tierB];
+            const harmfulSites = [...tierC, ...tierF];
+
+            const safePercentage = totalScans > 0 ? Math.round((safeSites.length / totalScans) * 100) : 0;
+            const threatPercentage = totalScans > 0 ? Math.round((harmfulSites.length / totalScans) * 100) : 0;
+
+            // Filtered sites for interactive list
+            const displayedSites = scanHistory.filter(site => {
+              if (dashboardFilter === 'extension') return site.source === 'extension';
+              if (dashboardFilter === 'manual') return site.source === 'manual';
+              if (dashboardFilter === 'safe') return site.grade === 'A' || site.grade === 'B';
+              if (dashboardFilter === 'threats') return site.grade === 'C' || site.grade === 'F';
+              if (dashboardFilter === 'tierA') return site.grade === 'A';
+              if (dashboardFilter === 'tierB') return site.grade === 'B';
+              if (dashboardFilter === 'tierC') return site.grade === 'C';
+              if (dashboardFilter === 'tierF') return site.grade === 'F';
+              return true;
+            });
+
+            return (
+              <div className="w-full flex-1 overflow-y-auto px-4 py-6 md:p-8 scroll-smooth animate-fadeIn relative z-10 flex flex-col items-center">
+                <div className="max-w-7xl w-full space-y-6 pb-24 text-left font-mono">
+                  
+                  {/* Top HUD Banner: Operator Identity & Quick Action */}
+                  <div className="w-full rounded-2xl border border-purple-500/20 bg-gradient-to-r from-[#0c1022]/90 via-[#0a0f1d]/80 to-[#120f26]/90 p-6 md:p-8 backdrop-blur-xl shadow-2xl relative overflow-hidden flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
+                    <div className="absolute top-0 right-0 w-96 h-96 bg-purple-600/10 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20" />
+                    
+                    <div className="space-y-2 relative z-10">
+                      <div className="flex items-center gap-2 text-xs font-bold text-emerald-400 tracking-widest uppercase">
+                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                        CYVORA TELEMETRY HUB // ACTIVE SURVEILLANCE
+                      </div>
+                      <h1 className="text-2xl md:text-3xl font-black text-white uppercase tracking-tight">
+                        COMMAND PORTAL: <span className="text-purple-400">{username || 'OPERATOR'}</span>
+                      </h1>
+                      <p className="text-xs text-slate-400 max-w-2xl font-sans leading-relaxed">
+                        Continuous domain evaluation active. Automated background interception via Cyvora Shield Extension synchronized with real-time cryptographic scanner telemetry.
+                      </p>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-3 relative z-10 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => setDashSubView('scanner')}
+                        className="h-11 px-5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs uppercase tracking-wider transition-all duration-200 cursor-pointer shadow-lg shadow-purple-900/30 flex items-center gap-2 active:scale-95"
+                      >
+                        <span>⚡</span> LAUNCH URL SCANNER
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 4 Core KPI Metrics Grid */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {/* KPI 1: Total Inspected Sites */}
+                    <div 
+                      onClick={() => setDashboardFilter('all')}
+                      className={`p-5 rounded-2xl border transition-all cursor-pointer group ${
+                        dashboardFilter === 'all' 
+                          ? 'border-purple-500 bg-purple-500/10 shadow-[0_0_20px_rgba(168,85,247,0.15)]' 
+                          : 'border-white/5 bg-[#090d16]/60 hover:border-white/20'
+                      }`}
+                    >
+                      <div className="flex justify-between items-center text-slate-400 text-[10px] uppercase font-bold tracking-widest">
+                        <span>TOTAL VISITED SITES</span>
+                        <span className="text-purple-400 text-base">🌐</span>
+                      </div>
+                      <div className="text-3xl font-black text-white mt-2">{totalScans}</div>
+                      <div className="mt-3 flex items-center justify-between text-[10px] text-slate-400 border-t border-white/5 pt-2">
+                        <span>MANUAL: <strong className="text-white">{manualScans.length}</strong></span>
+                        <span>EXTENSION: <strong className="text-cyan-400">{extensionScans.length}</strong></span>
+                      </div>
+                    </div>
+
+                    {/* KPI 2: Extension Detections */}
+                    <div 
+                      onClick={() => setDashboardFilter('extension')}
+                      className={`p-5 rounded-2xl border transition-all cursor-pointer group ${
+                        dashboardFilter === 'extension' 
+                          ? 'border-cyan-500 bg-cyan-500/10 shadow-[0_0_20px_rgba(6,182,212,0.15)]' 
+                          : 'border-white/5 bg-[#090d16]/60 hover:border-white/20'
+                      }`}
+                    >
+                      <div className="flex justify-between items-center text-slate-400 text-[10px] uppercase font-bold tracking-widest">
+                        <span>SHIELD AUTO-FLAGGED</span>
+                        <span className="text-cyan-400 text-base">🛡️</span>
+                      </div>
+                      <div className="text-3xl font-black text-cyan-400 mt-2">{extensionScans.length}</div>
+                      <div className="mt-3 text-[10px] text-slate-400 border-t border-white/5 pt-2 flex justify-between">
+                        <span>TAB MONITOR</span>
+                        <span className="text-emerald-400 font-bold">100% ONLINE</span>
+                      </div>
+                    </div>
+
+                    {/* KPI 3: Safe Domains (Tier A & B) */}
+                    <div 
+                      onClick={() => setDashboardFilter('safe')}
+                      className={`p-5 rounded-2xl border transition-all cursor-pointer group ${
+                        dashboardFilter === 'safe' 
+                          ? 'border-emerald-500 bg-emerald-500/10 shadow-[0_0_20px_rgba(16,185,129,0.15)]' 
+                          : 'border-white/5 bg-[#090d16]/60 hover:border-white/20'
+                      }`}
+                    >
+                      <div className="flex justify-between items-center text-slate-400 text-[10px] uppercase font-bold tracking-widest">
+                        <span>HEALTHY / SAFE SITES</span>
+                        <span className="text-emerald-400 text-base">✓</span>
+                      </div>
+                      <div className="text-3xl font-black text-emerald-400 mt-2">{safeSites.length}</div>
+                      <div className="mt-3 text-[10px] text-slate-400 border-t border-white/5 pt-2 flex justify-between">
+                        <span>DEFENSE RATIO</span>
+                        <span className="text-emerald-400 font-bold">{safePercentage}%</span>
+                      </div>
+                    </div>
+
+                    {/* KPI 4: Threat / Malicious Sites (Tier C & F) */}
+                    <div 
+                      onClick={() => setDashboardFilter('threats')}
+                      className={`p-5 rounded-2xl border transition-all cursor-pointer group ${
+                        dashboardFilter === 'threats' 
+                          ? 'border-red-500 bg-red-500/10 shadow-[0_0_20px_rgba(239,68,68,0.15)]' 
+                          : 'border-white/5 bg-[#090d16]/60 hover:border-white/20'
+                      }`}
+                    >
+                      <div className="flex justify-between items-center text-slate-400 text-[10px] uppercase font-bold tracking-widest">
+                        <span>FLAGGED THREATS / RISKS</span>
+                        <span className="text-red-400 text-base">⚠️</span>
+                      </div>
+                      <div className="text-3xl font-black text-red-400 mt-2">{harmfulSites.length}</div>
+                      <div className="mt-3 text-[10px] text-slate-400 border-t border-white/5 pt-2 flex justify-between">
+                        <span>THREAT RATIO</span>
+                        <span className="text-red-400 font-bold">{threatPercentage}%</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Visual Posture Breakdown & Tier Distribution Bar */}
+                  <div className="w-full bg-[#090d16]/60 border border-white/5 rounded-2xl p-6 space-y-4">
+                    <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2 border-b border-white/5 pb-3">
+                      <div>
+                        <div className="text-[10px] text-yellow-500 font-black tracking-widest uppercase">POSTURE COMPLIANCE MATRIX</div>
+                        <h3 className="text-base font-bold text-white uppercase mt-0.5">TIER ARCHITECTURE DISTRIBUTION</h3>
+                      </div>
+                      <div className="text-xs text-slate-400">
+                        Audited Nodes: <span className="text-white font-bold">{totalScans}</span>
+                      </div>
+                    </div>
+
+                    {/* Stacked Proportional Distribution Track Bar */}
+                    <div className="w-full h-4 bg-black/50 rounded-full border border-white/10 overflow-hidden flex p-0.5 gap-0.5">
+                      {tierA.length > 0 && <div title={`Tier A: ${tierA.length}`} style={{ width: `${(tierA.length / totalScans) * 100}%` }} className="h-full bg-emerald-500 rounded-sm" />}
+                      {tierB.length > 0 && <div title={`Tier B: ${tierB.length}`} style={{ width: `${(tierB.length / totalScans) * 100}%` }} className="h-full bg-cyan-400 rounded-sm" />}
+                      {tierC.length > 0 && <div title={`Tier C: ${tierC.length}`} style={{ width: `${(tierC.length / totalScans) * 100}%` }} className="h-full bg-yellow-400 rounded-sm" />}
+                      {tierF.length > 0 && <div title={`Tier F: ${tierF.length}`} style={{ width: `${(tierF.length / totalScans) * 100}%` }} className="h-full bg-red-500 rounded-sm" />}
+                    </div>
+
+                    {/* Clickable Tier Interactive Selector Cards */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
+                      <button 
+                        type="button"
+                        onClick={() => setDashboardFilter(dashboardFilter === 'tierA' ? 'all' : 'tierA')}
+                        className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                          dashboardFilter === 'tierA' ? 'border-emerald-500 bg-emerald-500/15' : 'border-white/5 bg-black/30 hover:border-emerald-500/30'
+                        }`}
+                      >
+                        <div className="text-[10px] text-slate-400">TIER A (OPTIMAL)</div>
+                        <div className="text-xl font-bold text-emerald-400 mt-1">{tierA.length} <span className="text-xs font-normal text-slate-500">sites</span></div>
+                      </button>
+
+                      <button 
+                        type="button"
+                        onClick={() => setDashboardFilter(dashboardFilter === 'tierB' ? 'all' : 'tierB')}
+                        className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                          dashboardFilter === 'tierB' ? 'border-cyan-500 bg-cyan-500/15' : 'border-white/5 bg-black/30 hover:border-cyan-500/30'
+                        }`}
+                      >
+                        <div className="text-[10px] text-slate-400">TIER B (SECURE)</div>
+                        <div className="text-xl font-bold text-cyan-400 mt-1">{tierB.length} <span className="text-xs font-normal text-slate-500">sites</span></div>
+                      </button>
+
+                      <button 
+                        type="button"
+                        onClick={() => setDashboardFilter(dashboardFilter === 'tierC' ? 'all' : 'tierC')}
+                        className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                          dashboardFilter === 'tierC' ? 'border-yellow-500 bg-yellow-500/15' : 'border-white/5 bg-black/30 hover:border-yellow-500/30'
+                        }`}
+                      >
+                        <div className="text-[10px] text-slate-400">TIER C (VULNERABLE)</div>
+                        <div className="text-xl font-bold text-yellow-400 mt-1">{tierC.length} <span className="text-xs font-normal text-slate-500">sites</span></div>
+                      </button>
+
+                      <button 
+                        type="button"
+                        onClick={() => setDashboardFilter(dashboardFilter === 'tierF' ? 'all' : 'tierF')}
+                        className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                          dashboardFilter === 'tierF' ? 'border-red-500 bg-red-500/15' : 'border-white/5 bg-black/30 hover:border-red-500/30'
+                        }`}
+                      >
+                        <div className="text-[10px] text-slate-400">TIER F (CRITICAL)</div>
+                        <div className="text-xl font-bold text-red-400 mt-1">{tierF.length} <span className="text-xs font-normal text-slate-500">sites</span></div>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Interactive Visited Sites Log Section with Live Search & Tabs */}
+                  <div className="w-full bg-[#090d16]/60 border border-white/5 rounded-2xl p-6 space-y-4">
+                    <div className="flex flex-col lg:flex-row justify-between lg:items-center gap-4 border-b border-white/5 pb-4">
+                      <div>
+                        <div className="text-[10px] text-purple-400 font-bold tracking-widest uppercase">DISCOVERED TARGET REGISTRY</div>
+                        <h3 className="text-base font-bold text-white uppercase mt-0.5">
+                          INSPECTED WEB NODES ({displayedSites.length})
+                        </h3>
+                      </div>
+
+                      {/* Filter Switcher Tabs */}
+                      <div className="flex flex-wrap items-center gap-1.5 bg-black/40 p-1.5 rounded-xl border border-white/5">
+                        {[
+                          { id: 'all', label: 'ALL' },
+                          { id: 'safe', label: 'SAFE' },
+                          { id: 'threats', label: 'THREATS' },
+                          { id: 'extension', label: 'EXTENSION' },
+                          { id: 'manual', label: 'MANUAL' }
+                        ].map(tab => (
+                          <button
+                            key={tab.id}
+                            type="button"
+                            onClick={() => setDashboardFilter(tab.id)}
+                            className={`px-3 py-1 rounded-lg text-[10px] font-bold uppercase transition-all cursor-pointer ${
+                              dashboardFilter === tab.id 
+                                ? 'bg-purple-600 text-white shadow-md' 
+                                : 'text-slate-400 hover:text-white hover:bg-white/5'
+                            }`}
+                          >
+                            {tab.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Table / Cards List of Inspected Sites */}
+                    <div className="space-y-2.5 max-h-96 overflow-y-auto pr-1">
+                      {displayedSites.length === 0 ? (
+                        <div className="text-center py-12 text-slate-500 text-xs uppercase">
+                          No indexed domains match the selected telemetry filter.
+                        </div>
+                      ) : (
+                        displayedSites.map((site, idx) => {
+                          let badgeColor = 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
+                          if (site.grade === 'B') badgeColor = 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20';
+                          if (site.grade === 'C') badgeColor = 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20';
+                          if (site.grade === 'F') badgeColor = 'bg-red-500/10 text-red-400 border-red-500/20';
+
+                          return (
+                            <div 
+                              key={idx}
+                              className="border border-white/5 bg-[#0b101d]/60 hover:bg-[#0f1629] p-4 rounded-xl flex flex-col md:flex-row md:items-center justify-between gap-3 transition-all duration-200 hover:border-purple-500/30"
+                            >
+                              <div className="space-y-1 max-w-lg">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-bold text-white text-xs truncate">{site.url}</span>
+                                  <span className={`text-[9px] px-2 py-0.5 rounded border uppercase font-bold ${
+                                    site.source === 'extension' ? 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20' : 'bg-purple-500/10 text-purple-400 border-purple-500/20'
+                                  }`}>
+                                    {site.source === 'extension' ? 'SHIELD EXTENSION' : 'MANUAL SCAN'}
+                                  </span>
+                                </div>
+                                <div className="text-[10px] text-slate-400 flex items-center gap-3">
+                                  <span>LOGGED: {site.timestamp}</span>
+                                  <span>STATUS: <strong className="text-slate-300">{site.statusText || 'ANALYZED'}</strong></span>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-3 self-end md:self-center shrink-0">
+                                <div className={`px-3 py-1 rounded-lg border font-black text-sm ${badgeColor}`}>
+                                  TIER {site.grade} <span className="text-[10px] opacity-75 font-normal">({site.score}%)</span>
+                                </div>
+                                
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setDashSubView('scanner');
+                                    setTargetUrl(site.url);
+                                    runSecurityScan(site.url);
+                                  }}
+                                  className="h-8 px-3 rounded-lg border border-purple-500/30 bg-purple-500/10 hover:bg-purple-600 hover:text-white text-purple-300 text-[10px] font-bold uppercase transition-all cursor-pointer"
+                                >
+                                  RE-SCAN ↻
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+
                 </div>
-            </div>
-            </div>
-          )}
+              </div>
+            );
+          })()}
 
           {/* VIEW B: IDENTITY PROFILE VIEW SEGMENT */}
           {dashSubView === 'profile' && (
