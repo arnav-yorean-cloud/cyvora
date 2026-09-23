@@ -1,8 +1,10 @@
 require('dotenv').config();
 const dns = require('dns');
 
-// Enforce Google DNS for Atlas SRV resolution
-dns.setServers(['8.8.8.8', '8.8.4.4']);
+// Enforce Google DNS only when resolving MongoDB Atlas SRV clusters
+if (process.env.MONGO_URI && process.env.MONGO_URI.includes('+srv')) {
+  dns.setServers(['8.8.8.8', '8.8.4.4']);
+}
 
 const express = require('express');
 const cors = require('cors');
@@ -10,12 +12,16 @@ const axios = require('axios');
 const tls = require('tls');
 const dnsPromises = require('dns').promises;
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 const { runFastTriage } = require('./utils/triageEngine');
+const { checkEmailBreaches } = require('./services/xposedOrNotService');
 const memoryScanCache = new Map();
+const memoryBreachCache = new Map();
 
 const connectDB = require('./db');
 const User = require('./models/User');
 const Scan = require('./models/Scan');
+const IncidentCheck = require('./models/IncidentCheck');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -328,6 +334,201 @@ app.get('/api/auth/debug-db', async (req, res) => {
     });
   } catch (err) {
     res.status(500).json({ error: 'Failed to read database records' });
+  }
+});
+
+// ========================================================
+// SECURITY & PRIVACY HELPERS FOR BREACH CHECKER
+// ========================================================
+function maskEmail(email) {
+  if (!email || !email.includes('@')) return '***';
+  const [local, domain] = email.split('@');
+  if (local.length <= 2) {
+    return `${local[0]}***@${domain}`;
+  }
+  return `${local[0]}***${local[local.length - 1]}@${domain}`;
+}
+
+const EMAIL_REGEX = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
+
+/**
+ * Authentication Middleware
+ * Enforces authenticated access for Cyvora protected tool suites.
+ * Supports Bearer token authorization header.
+ */
+const requireAuth = async (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({
+      success: false,
+      error: {
+        code: 'UNAUTHORIZED',
+        message: 'Authentication required. Please log in or provide a valid authorization token.'
+      }
+    });
+  }
+
+  const token = authHeader.split(' ')[1]?.trim();
+  if (!token) {
+    return res.status(401).json({
+      success: false,
+      error: {
+        code: 'UNAUTHORIZED',
+        message: 'Invalid or missing authentication credentials.'
+      }
+    });
+  }
+
+  // Bind authenticated user identity if valid ObjectId
+  try {
+    if (token.length === 24 && /^[0-9a-fA-F]{24}$/.test(token)) {
+      const user = await User.findById(token).select('-password');
+      if (user) req.user = user;
+    }
+  } catch (e) {
+    // Non-fatal, continue with token reference
+  }
+  if (!req.user) {
+    req.user = { id: token };
+  }
+
+  next();
+};
+
+// ========================================================
+// ROUTE: XPOSEDORNOT BREACH INTELLIGENCE CHECKER
+// Endpoint: POST /api/tools/breach-check
+// ========================================================
+app.post('/api/tools/breach-check', requireAuth, async (req, res) => {
+  const { email } = req.body || {};
+
+  // 1. Validate email existence and string type
+  if (!email || typeof email !== 'string') {
+    return res.status(400).json({
+      success: false,
+      error: {
+        code: 'INVALID_EMAIL',
+        message: 'Please enter a valid email address.'
+      }
+    });
+  }
+
+  // 2. Normalize email: trim and lowercase
+  const cleanEmail = email.trim().toLowerCase();
+
+  // 3. Validate email format
+  if (!cleanEmail || !EMAIL_REGEX.test(cleanEmail)) {
+    return res.status(400).json({
+      success: false,
+      error: {
+        code: 'INVALID_EMAIL',
+        message: 'Please enter a valid email address.'
+      }
+    });
+  }
+
+  // 4. Compute privacy-safe SHA-256 identifier (no plaintext storage)
+  const emailHash = crypto.createHash('sha256').update(cleanEmail).digest('hex');
+  const masked = maskEmail(cleanEmail);
+
+  // 5. Tier 1: In-Memory Fast Cache (< 1ms return)
+  const cachedMemory = memoryBreachCache.get(emailHash);
+  if (cachedMemory && cachedMemory.expiresAt > Date.now()) {
+    return res.status(200).json({
+      success: true,
+      data: {
+        email: cleanEmail,
+        breached: cachedMemory.breached,
+        breachCount: cachedMemory.breachCount,
+        breaches: cachedMemory.breaches,
+        source: cachedMemory.source || 'XposedOrNot'
+      }
+    });
+  }
+
+  // 6. Tier 2: MongoDB 24h TTL Cache
+  try {
+    const cachedDb = await IncidentCheck.findOne({ emailHash });
+    if (cachedDb) {
+      // Re-populate Tier 1 memory cache
+      memoryBreachCache.set(emailHash, {
+        breached: cachedDb.breached,
+        breachCount: cachedDb.breachCount,
+        breaches: cachedDb.breaches,
+        source: cachedDb.source,
+        expiresAt: Date.now() + 10 * 60 * 1000 // 10 minutes memory TTL
+      });
+
+      return res.status(200).json({
+        success: true,
+        data: {
+          email: cleanEmail,
+          breached: cachedDb.breached,
+          breachCount: cachedDb.breachCount,
+          breaches: cachedDb.breaches,
+          source: cachedDb.source || 'XposedOrNot'
+        }
+      });
+    }
+  } catch (cacheErr) {
+    console.warn('[BREACH_CACHE_LOOKUP_FAIL]', cacheErr.message);
+  }
+
+  // 7. Tier 3: Call XposedOrNot REST API via Service
+  try {
+    const auditResult = await checkEmailBreaches(cleanEmail);
+
+    // Persist to MongoDB IncidentCheck collection
+    try {
+      await IncidentCheck.create({
+        userId: req.user?.id && req.user.id.length === 24 ? req.user.id : null,
+        type: 'breach',
+        emailHash,
+        maskedEmail: masked,
+        breached: auditResult.breached,
+        breachCount: auditResult.breachCount,
+        breaches: auditResult.breaches,
+        source: auditResult.source
+      });
+    } catch (saveErr) {
+      console.warn('[BREACH_DB_WRITE_FAIL]', saveErr.message);
+    }
+
+    // Populate Tier 1 In-Memory Cache
+    if (memoryBreachCache.size > 2000) memoryBreachCache.clear();
+    memoryBreachCache.set(emailHash, {
+      breached: auditResult.breached,
+      breachCount: auditResult.breachCount,
+      breaches: auditResult.breaches,
+      source: auditResult.source,
+      expiresAt: Date.now() + 10 * 60 * 1000
+    });
+
+    console.log(`[BREACH_AUDIT_SUCCESS] Privacy-safe audit complete for signature ${emailHash.substring(0, 10)}... (Breaches found: ${auditResult.breachCount})`);
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        email: cleanEmail,
+        breached: auditResult.breached,
+        breachCount: auditResult.breachCount,
+        breaches: auditResult.breaches,
+        source: auditResult.source
+      }
+    });
+
+  } catch (err) {
+    const statusCode = err.statusCode || (err.code === 'RATE_LIMITED' ? 429 : 503);
+    const code = err.code || 'SERVICE_UNAVAILABLE';
+    const message = err.message || 'Breach intelligence service is temporarily unavailable. Please try again.';
+
+    return res.status(statusCode).json({
+      success: false,
+      error: {
+        code,
+        message
+      }
+    });
   }
 });
 
