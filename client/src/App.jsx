@@ -4,6 +4,7 @@ import { auth } from './firebase';
 import { signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas-pro';
+import BreachChecker from './BreachChecker';
 // ========================================================
 // HANDCRAFTED HORIZONTAL DEEP-OCEAN INTERACTIVE WAVE CANVAS
 // ========================================================
@@ -1419,6 +1420,19 @@ const handleVerifyOtp = async () => {
 
               <button 
                 type="button"
+                onClick={() => setDashSubView('breach')}
+                className={`w-full text-left font-mono text-xs font-bold tracking-wider h-11 px-3 rounded-xl border transition-all flex items-center gap-4 cursor-pointer overflow-hidden ${
+                  dashSubView === 'breach' ? 'border-rose-500 bg-rose-500/10 text-white' : 'border-transparent text-slate-400 hover:text-white hover:bg-[#111827]'
+                }`}
+              >
+                <span className={`shrink-0 flex items-center justify-center w-5 h-5 ${dashSubView === 'breach' ? 'text-rose-400' : 'text-slate-400'}`}>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                </span>
+                <span className="opacity-0 group-hover:opacity-100 whitespace-nowrap transition-opacity duration-200">BREACH CHECKER</span>
+              </button>
+
+              <button 
+                type="button"
                 onClick={() => setDashSubView('intel')}
                 className={`w-full text-left font-mono text-xs font-bold tracking-wider h-11 px-3 rounded-xl border transition-all flex items-center gap-4 cursor-pointer overflow-hidden ${
                   dashSubView === 'intel' ? 'border-purple-500 bg-purple-500/10 text-white' : 'border-transparent text-slate-400 hover:text-white hover:bg-[#111827]'
@@ -1504,14 +1518,50 @@ const handleVerifyOtp = async () => {
           
           {/* VIEW A: RECON SYSTEM CORE DASHBOARD (WITH IMMERSIVE ENTRY PORTAL GATE) */}
           {dashSubView === 'home' && (
-            <div className="w-full h-full flex flex-col items-center justify-center relative overflow-hidden">
-              
-            <div className="w-full max-w-xl rounded-xl border border-purple-500/20 bg-[#111827]/60 backdrop-blur-md p-8 text-center shadow-2xl animate-fadeIn rounded-xl relative z-10">
-              <h1 className="text-3xl font-black tracking-wider text-purple-500 uppercase font-mono">Dashboard</h1>
-              <div className="mt-6 p-4 rounded-lg bg-black/40 text-emerald-400 font-mono text-xs uppercase tracking-widest border border-emerald-500/10">
-                  Welcome Back, {username || 'Operator'}
+            <div className="w-full h-full flex flex-col items-center justify-center relative overflow-hidden p-4">
+              <div className="w-full max-w-2xl rounded-2xl border border-purple-500/20 bg-[#111827]/70 backdrop-blur-md p-8 text-center shadow-2xl animate-fadeIn relative z-10 space-y-6">
+                <div className="space-y-2">
+                  <div className="text-[10px] font-mono font-black text-purple-400 tracking-widest uppercase">
+                    CYVORA COMMAND NEXUS
+                  </div>
+                  <h1 className="text-3xl font-black tracking-wider text-white uppercase font-mono">
+                    Security Operations Center
+                  </h1>
+                  <div className="p-2.5 px-4 rounded-lg bg-black/40 text-emerald-400 font-mono text-xs uppercase tracking-widest border border-emerald-500/10 inline-block">
+                    Active Operator: {username || 'Operator'}
+                  </div>
                 </div>
-            </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-left pt-2 font-mono">
+                  <div 
+                    onClick={() => setDashSubView('scanner')}
+                    className="p-5 rounded-xl border border-purple-500/20 bg-[#070a13]/80 hover:border-purple-500/60 hover:bg-[#070a13] transition-all cursor-pointer group space-y-2 shadow-lg"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xl">🌐</span>
+                      <span className="text-[10px] text-purple-400 font-bold uppercase tracking-widest group-hover:translate-x-1 transition-transform">LAUNCH →</span>
+                    </div>
+                    <div className="font-bold text-white text-sm">URL SECURITY SCANNER</div>
+                    <p className="text-[11px] text-slate-400 font-sans leading-relaxed">
+                      Audit domains, HTTP security headers, TLS configurations, and anti-spoofing DNS records.
+                    </p>
+                  </div>
+
+                  <div 
+                    onClick={() => setDashSubView('breach')}
+                    className="p-5 rounded-xl border border-rose-500/30 bg-[#070a13]/80 hover:border-rose-500/70 hover:bg-[#070a13] transition-all cursor-pointer group space-y-2 shadow-lg"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xl">🛡️</span>
+                      <span className="text-[10px] text-rose-400 font-bold uppercase tracking-widest group-hover:translate-x-1 transition-transform">LAUNCH →</span>
+                    </div>
+                    <div className="font-bold text-white text-sm">DATA BREACH CHECKER</div>
+                    <p className="text-[11px] text-slate-400 font-sans leading-relaxed">
+                      Audit email exposures across billions of records using the official XposedOrNot intelligence engine.
+                    </p>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 
@@ -2065,6 +2115,13 @@ const handleVerifyOtp = async () => {
     </div>
   );
 })()}
+
+          {/* VIEW: CYVORA BREACH CHECKER FEATURE (XPOSEDORNOT INTEGRATION) */}
+          {dashSubView === 'breach' && (
+            <div className="flex-1 w-full overflow-y-auto px-4 py-8 md:p-12 scroll-smooth animate-fadeIn relative z-10 flex flex-col items-center">
+              <BreachChecker currentUser={currentUser} />
+            </div>
+          )}
 
           {/* VIEW C: ISOLATED WORKSPACE PLACEHOLDERS FOR FEATURE INJECTIONS */}
           {(dashSubView === 'intel' || dashSubView === 'game') && (
