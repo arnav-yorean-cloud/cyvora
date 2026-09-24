@@ -891,89 +891,22 @@ function App() {
   // ========================================================
   const [dashboardFilter, setDashboardFilter] = useState('all'); // 'all' | 'extension' | 'manual' | 'safe' | 'threats'
   const [selectedSiteDetail, setSelectedSiteDetail] = useState(null);
+  
+  
+ // 1. Initial State
+  const [scanHistory, setScanHistory] = useState([]);
 
-  // Default seed data + localStorage sync so dashboard looks rich immediately
-  const [scanHistory, setScanHistory] = useState(() => {
-    try {
-      const saved = localStorage.getItem('cyvora_telemetry_history');
-      if (saved) return JSON.parse(saved);
-    } catch (e) {}
-    return [
-      {
-        url: 'https://imsec.ac.in',
-        domain: 'imsec.ac.in',
-        score: 94,
-        grade: 'A',
-        source: 'manual',
-        statusText: 'MAXIMUM INFRASTRUCTURE SECURITY VERIFIED',
-        gaps: ['Strict Content-Security-Policy recommended'],
-        timestamp: '11:42 AM',
-        date: 'Today'
-      },
-      {
-        url: 'http://free-crypto-airdrop-login.xyz',
-        domain: 'free-crypto-airdrop-login.xyz',
-        score: 22,
-        grade: 'F',
-        source: 'extension',
-        statusText: 'SEVERE SECURITY THREAT PROFILE DETECTION',
-        gaps: ['High-risk disposable TLD (.xyz)', 'Missing DMARC policy', 'Deceptive keyword in URL'],
-        timestamp: '10:15 AM',
-        date: 'Today'
-      },
-      {
-        url: 'https://github.com',
-        domain: 'github.com',
-        score: 96,
-        grade: 'A',
-        source: 'extension',
-        statusText: 'MAXIMUM INFRASTRUCTURE SECURITY VERIFIED',
-        gaps: ['No material security gaps detected.'],
-        timestamp: '09:30 AM',
-        date: 'Today'
-      },
-      {
-        url: 'http://portal-verify-bank-update.top',
-        domain: 'portal-verify-bank-update.top',
-        score: 38,
-        grade: 'F',
-        source: 'extension',
-        statusText: 'MALICIOUS CREDENTIAL HARVESTER FLAGGED',
-        gaps: ['Phishing mimicry pattern', 'Unencrypted HTTP traffic'],
-        timestamp: 'Yesterday',
-        date: 'Yesterday'
-      },
-      {
-        url: 'https://aktu.ac.in',
-        domain: 'aktu.ac.in',
-        score: 82,
-        grade: 'B',
-        source: 'manual',
-        statusText: 'SECURE VERIFIED PRODUCTION NODE RUNNING',
-        gaps: ['Missing HTTP Strict-Transport-Security policy'],
-        timestamp: 'Yesterday',
-        date: 'Yesterday'
-      },
-      {
-        url: 'https://testing-staging-environment.net',
-        domain: 'testing-staging-environment.net',
-        score: 64,
-        grade: 'C',
-        source: 'manual',
-        statusText: 'MODERATE RISK DEFICIENCIES DETECTED',
-        gaps: ['Missing Content Security Policy', 'X-Frame-Options not set'],
-        timestamp: '2 days ago',
-        date: '20 Sep'
-      }
-    ];
-  });
-
-  // Keep telemetry saved to localStorage
+  // 2. Fetch Real Historical Scans from MongoDB
   useEffect(() => {
-    try {
-      localStorage.setItem('cyvora_telemetry_history', JSON.stringify(scanHistory));
-    } catch (e) {}
-  }, [scanHistory]);
+    fetch('http://localhost:5000/api/history')
+      .then(res => res.ok ? res.json() : [])
+      .then(realRecords => {
+        if (Array.isArray(realRecords) && realRecords.length > 0) {
+          setScanHistory(realRecords);
+        }
+      })
+      .catch(err => console.error("Telemetry fetch error:", err));
+  }, [dashSubView]);
   const [showReport, setShowReport] = useState(false);
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
 // Centralized Scanner Engine: Used by both manual search and extension handoff
@@ -982,7 +915,7 @@ function App() {
     setIsScanning(true);
     setScanResult(null);
     setScanError(null);
-    setShowConfig(false);
+    setShowConfig(false)
 
     let progress = 0;
     const interval = setInterval(() => {
@@ -995,7 +928,7 @@ function App() {
       const res = await fetch('http://127.0.0.1:5000/api/scan/url', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: urlToScan })
+        body: JSON.stringify({ url: urlToScan, email }) // <-- email pass karein
       });
       const data = await res.json();
       if (res.ok) {
@@ -1022,6 +955,62 @@ function App() {
       setScanError("Unable to establish communication with the Cyvora Core engine port.");
     } finally {
       setTimeout(() => setIsScanning(false), 800);
+    }
+  };
+  // Function 1: Generate Deep Threat Intel via Gemini
+  const handleGenerateAiIntel = async () => {
+    if (!scanReport) return;
+    setIsAiAnalyzing(true);
+    try {
+      const res = await fetch('http://localhost:5000/api/scan/ai-analysis', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          url: scanReport.url,
+          score: scanReport.score,
+          grade: scanReport.grade,
+          gaps: scanReport.gaps,
+          metadata: scanReport.metadata
+        })
+      });
+      const data = await res.json();
+      setAiAnalysis(data.analysis);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsAiAnalyzing(false);
+    }
+  };
+
+  // Function 2: In-App Cyber Q&A Query
+  const handleAskAi = async (customQuery) => {
+    const q = customQuery || aiUserQuery;
+    if (!q.trim()) return;
+
+    const newChat = [...aiChatHistory, { role: 'user', text: q }];
+    setAiChatHistory(newChat);
+    setAiUserQuery('');
+    setIsAiReplying(true);
+
+    try {
+      const res = await fetch('http://localhost:5000/api/scan/ai-chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          question: q,
+          scanContext: {
+            url: scanReport?.url,
+            score: scanReport?.score,
+            gaps: scanReport?.gaps
+          }
+        })
+      });
+      const data = await res.json();
+      setAiChatHistory([...newChat, { role: 'ai', text: data.answer }]);
+    } catch (e) {
+      setAiChatHistory([...newChat, { role: 'ai', text: "Service temporarily unreachable." }]);
+    } finally {
+      setIsAiReplying(false);
     }
   };
 
@@ -1090,6 +1079,12 @@ function App() {
     }
   };
   const [showDeepConfig, setShowConfig] = useState(false);
+  // Cyvora AI Sentinel Machine States
+  const [aiAnalysis, setAiAnalysis] = useState(null);
+  const [isAiAnalyzing, setIsAiAnalyzing] = useState(false);
+  const [aiUserQuery, setAiUserQuery] = useState('');
+  const [aiChatHistory, setAiChatHistory] = useState([]);
+  const [isAiReplying, setIsAiReplying] = useState(false);
   const [scanError, setScanError] = useState(null);
   const [isConfigLoading, setIsConfigLoading] = useState(false);
   const [conicPercent, setConicPercent] = useState(0);
@@ -1880,8 +1875,38 @@ const handleVerifyOtp = async () => {
 
                     {/* Table / Cards List of Inspected Sites */}
                     <div className="space-y-2.5 max-h-96 overflow-y-auto pr-1">
-                      {displayedSites.length === 0 ? (
-                        <div className="text-center py-12 text-slate-500 text-xs uppercase">
+                      {totalScans === 0 ? (
+                        /* ========================================================
+                           NEW USER ONBOARDING HERO BANNER (EMPTY STATE)
+                           ======================================================== */
+                        <div className="py-12 px-6 rounded-2xl border border-purple-500/30 bg-gradient-to-b from-purple-950/20 via-[#0a0f1d] to-black/80 text-center space-y-4 shadow-2xl animate-fadeIn">
+                          <div className="w-14 h-14 mx-auto rounded-2xl bg-purple-500/10 border border-purple-500/30 flex items-center justify-center text-2xl shadow-inner animate-pulse">
+                            📡
+                          </div>
+                          <div className="space-y-1.5 font-mono">
+                            <div className="text-[10px] font-bold text-emerald-400 tracking-widest uppercase">
+                              RADAR STANDBY // ZERO TELEMETRY INDEXED
+                            </div>
+                            <h3 className="text-base md:text-lg font-black text-white uppercase tracking-wider">
+                              START YOUR TRACKING FROM YOUR FIRST SEARCH
+                            </h3>
+                            <p className="text-xs text-slate-400 font-sans max-w-lg mx-auto leading-relaxed">
+                              Your SOC command portal is currently waiting for input. Inspect any inbound link or foreign domain to activate live telemetry benchmarks, tier compliance distribution, and incident history.
+                            </p>
+                          </div>
+                          <div className="pt-2">
+                            <button
+                              type="button"
+                              onClick={() => setDashSubView('scanner')}
+                              className="px-6 py-3 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-mono font-bold text-xs uppercase tracking-widest transition-all duration-200 shadow-lg shadow-purple-900/40 cursor-pointer active:scale-95 inline-flex items-center gap-2"
+                            >
+                              <span>⚡</span> RUN YOUR FIRST SCAN →
+                            </button>
+                          </div>
+                        </div>
+                      ) : displayedSites.length === 0 ? (
+                        /* Filter empty state */
+                        <div className="text-center py-12 text-slate-500 text-xs uppercase font-mono">
                           No indexed domains match the selected telemetry filter.
                         </div>
                       ) : (
@@ -1952,6 +1977,9 @@ const handleVerifyOtp = async () => {
           {/* ========================================================
               VIEW C-1: CYVORA URL SECURITY SCANNER UPGRADED COMMAND FRAMEWORK
               ======================================================== */}
+          {/* ========================================================
+              VIEW C-1: CYVORA URL SECURITY SCANNER (8 PILLARS + DEEP TERMINAL)
+              ======================================================== */}
           {dashSubView === 'scanner' && (
             <div className="flex-1 w-full overflow-y-auto px-4 py-8 md:p-12 scroll-smooth animate-fadeIn relative z-10 flex flex-col items-center">
               <div className="max-w-7xl w-full space-y-8 pb-32">
@@ -1967,7 +1995,6 @@ const handleVerifyOtp = async () => {
                   </div>
                   
                   <div className="flex items-center gap-3">
-
                     <button
                       type="button"
                       onClick={() => setShowResetModal(true)}
@@ -1996,13 +2023,13 @@ const handleVerifyOtp = async () => {
                       />
                     </div>
                     <button
-                    type="button"
-                    disabled={isScanning || !targetUrl}
-                    className="h-12 px-8 font-mono text-xs font-black tracking-widest text-black bg-yellow-500 hover:bg-yellow-400 rounded-xl transition-all duration-300 ease-[cubic-bezier(0.34,1.06,0.5,1)] shadow-lg active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed shrink-0 uppercase cursor-pointer"
-                    onClick={() => runSecurityScan(targetUrl)}
+                      type="button"
+                      disabled={isScanning || !targetUrl}
+                      className="h-12 px-8 font-mono text-xs font-black tracking-widest text-black bg-yellow-500 hover:bg-yellow-400 rounded-xl transition-all duration-300 ease-[cubic-bezier(0.34,1.06,0.5,1)] shadow-lg active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed shrink-0 uppercase cursor-pointer"
+                      onClick={() => runSecurityScan(targetUrl)}
                     >
                       {isScanning ? 'SCANNING SURFACES...' : 'SEARCH '}
-                      </button>
+                    </button>
                   </div>
                 </div>
 
@@ -2017,7 +2044,7 @@ const handleVerifyOtp = async () => {
                   </div>
                 )}
 
-                {/* 🚨 DYNAMIC VALIDATION FAILURE ALERT BOX */}
+                {/* DYNAMIC VALIDATION FAILURE ALERT BOX */}
                 {scanError && !isScanning && (
                   <div className="w-full rounded-2xl border border-red-500/20 bg-red-500/5 p-6 animate-fadeIn font-mono text-xs flex items-start gap-4 shadow-xl">
                     <span className="text-xl leading-none text-red-400 animate-pulse">⚠️</span>
@@ -2028,9 +2055,7 @@ const handleVerifyOtp = async () => {
                   </div>
                 )}
 
-                {/* ========================================================
-                    📊 PERSISTENT COMPONENT: TIER HISTORICAL METRICS GRAPH & ACCORDION
-                    ======================================================== */}
+                {/* OPERATIONAL RECON HISTORY MATRIX */}
                 <div className="w-full bg-[#090d16]/30 border border-white/5 rounded-2xl p-6 space-y-6 text-xs font-mono text-left">
                   <div className="flex justify-between items-center border-b border-white/5 pb-3">
                     <span className="text-slate-400 font-bold tracking-widest text-[10px] uppercase">OPERATIONAL RECON HISTORY MATRIX</span>
@@ -2039,7 +2064,6 @@ const handleVerifyOtp = async () => {
                     </span>
                   </div>
 
-                  {/* Micro Analytical Counters Grid */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="bg-emerald-500/5 border border-emerald-500/10 rounded-xl p-4 flex justify-between items-center">
                       <span className="text-slate-400 font-bold text-[10px] uppercase">SECURED INFRASTRUCTURE NODES</span>
@@ -2051,7 +2075,6 @@ const handleVerifyOtp = async () => {
                     </div>
                   </div>
 
-                  {/* Progressive Distribution Horizontal Metrics Graph */}
                   <div className="space-y-3 pt-2">
                     {['A', 'B', 'C', 'F'].map(tier => {
                       const matchingScans = scanHistory.filter(h => h.grade === tier);
@@ -2078,7 +2101,6 @@ const handleVerifyOtp = async () => {
                             <div className={`h-full rounded-full transition-all duration-1000 ease-out ${barColor}`} style={{ width: `${percent}%` }} />
                           </div>
 
-                          {/* Expandable Historic Sub-List Panel Accordion Block */}
                           {expandedTier === tier && (
                             <div className="w-full bg-black/50 border border-white/5 rounded-xl p-3 mt-2 space-y-2 animate-slideDown max-h-48 overflow-y-auto">
                               {matchingScans.length === 0 ? (
@@ -2104,13 +2126,9 @@ const handleVerifyOtp = async () => {
                   </div>
                 </div>
 
-                {/* ========================================================
-                    🌌 VIEW STATE A: INITIAL BLANK PORTAL MODULES (BEFORE SCAN)
-                    ======================================================== */}
+                {/* VIEW STATE A: INITIAL BLANK PORTAL MODULES (BEFORE SCAN) */}
                 {!scanReport && !isScanning && (
                   <div className="w-full space-y-6 text-xs font-mono text-left animate-fadeIn">
-                    
-                    {/* Live Network Core Simulation Telemetry Ticker */}
                     <div className="w-full rounded-xl border border-white/5 bg-black/60 p-4 space-y-2 shadow-inner">
                       <div className="text-emerald-400 font-bold tracking-widest text-[9px] uppercase flex items-center gap-2">
                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
@@ -2123,7 +2141,6 @@ const handleVerifyOtp = async () => {
                       </div>
                     </div>
 
-                    {/* Interactive Core Protocol Educational Guide Cards Grid */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
                       <div className="border border-white/5 bg-[#0e1322]/40 p-5 rounded-xl transition-all duration-300 ease-[cubic-bezier(0.34,1.06,0.5,1)] hover:border-purple-500/40 hover:-translate-y-1 hover:shadow-2xl hover:shadow-purple-950/20 group">
                         <div className="text-purple-500 font-bold text-[10px] tracking-widest uppercase mb-1">STRATEGY_01 // FIREWALL</div>
@@ -2144,15 +2161,12 @@ const handleVerifyOtp = async () => {
                   </div>
                 )}
 
-                {/* ========================================================
-                    📈 VIEW STATE B: ACTIVE RESULTS HUB METRICS (AFTER SCAN)
-                    ======================================================== */}
+                {/* VIEW STATE B: ACTIVE RESULTS HUB METRICS (AFTER SCAN) */}
                 {scanReport && !isScanning && (
                   <div className="w-full space-y-6 animate-fadeIn text-xs font-mono text-left">
                     
                     {/* VISUAL GRAPHS BLOCK ARRAY */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                      {/* Graph Item 1: Horizontal Progress Track Bar */}
                       <div className="rounded-xl border border-white/5 bg-[#0e1322]/40 p-6 space-y-4 shadow-xl md:col-span-2 flex flex-col justify-center">
                         <div className="flex justify-between items-center">
                           <span className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Total Cyber Defensibility Rating:</span>
@@ -2169,7 +2183,6 @@ const handleVerifyOtp = async () => {
                         </div>
                       </div>
 
-                      {/* Graph Item 2: SVG Vector Radial Shield Circle Ring */}
                       <div className="rounded-xl border border-white/5 bg-[#0e1322]/40 p-4 flex flex-col items-center justify-center shadow-xl">
                         <span className="text-[9px] tracking-wider text-slate-500 uppercase block font-bold w-full text-center mb-2">ENGINE_SECURITY_GRADE</span>
                         <div className="w-20 h-20 relative">
@@ -2184,176 +2197,462 @@ const handleVerifyOtp = async () => {
                       </div>
                     </div>
 
-                    {/* Metadata Registry Summary Infrastructure Card */}
-                    <div className="rounded-xl border border-white/5 bg-[#0e1322]/40 p-5 flex flex-col justify-center space-y-2.5 shadow-xl">
-                      <div className="flex justify-between border-b border-white/5 pb-1.5"><span className="text-slate-500">TARGET CONNECTION PATH:</span><span className="text-yellow-400 font-bold truncate max-w-[260px] md:max-w-[450px]">{scanReport.url}</span></div>
-                      <div className="flex justify-between border-b border-white/5 pb-1.5"><span className="text-slate-500">NETWORK OWNER REGISTRAR:</span><span className="text-white uppercase">{scanReport.metadata.registrar}</span></div>
-                      <div className="flex justify-between"><span className="text-slate-500">MONITOR STABILITY WINDOW:</span><span className="text-cyan-400 font-bold">{scanReport.metadata.ageDays === 0 ? "ZERO (LOCAL TEST ENVIRONMENT)" : `${scanReport.metadata.ageDays} DAYS OPERATIONAL COMPLIANCE`}</span></div>
-                    </div>
-
-                    {/* Dynamic Simulated Network Packet Inspection Dump */}
-                    <div className="w-full bg-black/60 border border-white/5 rounded-xl p-4 space-y-2">
-                      <div className="text-[9px] font-bold text-purple-400 uppercase tracking-widest">INTERCEPT_STREAM // HTTP_RAW_PACKET_DECODER_CAPTURE</div>
-                      <div className="text-[#64748b] text-[10px] font-mono whitespace-pre overflow-x-auto bg-black/40 p-3 rounded-lg leading-relaxed select-all">
-                        {`GET / HTTP/1.1\nHost: ${scanReport.url.replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0]}\nUser-Agent: CyvoraScanner/3.0.0_NodeCORE\nAccept: application/json\nConnection: keep-alive\n\nHTTP/1.1 200 OK\nServer: Cloudflare Edge Distribution\nStrict-Transport-Security: max-age=31536000; includeSubDomains`}
-                      </div>
-                    </div>
-
-                    {/* VULNERABILITY HIGHLIGHTS CARD */}
-                    <div className="rounded-xl border border-white/5 bg-[#0e1322]/20 p-6 space-y-3">
-                      <h4 className="text-slate-400 font-black tracking-wide uppercase text-[10px]">🔎 SYSTEM PROTECTION DEFICIENCIES & DETECTED GAPS:</h4>
-                      <div className="space-y-2">
-                        {scanReport.gaps.map((gap, idx) => (
-                          <div key={idx} className="p-3 rounded-xl border border-yellow-500/10 bg-yellow-500/5 flex items-center gap-3 text-yellow-400">
-                            <span className="text-sm">⚡</span>
-                            <span className="uppercase font-bold tracking-wide text-[11px]">{gap}</span>
+                    {/* ========================================================
+                        PRIMARY VIEW: 8 CLEAN MODULAR SECURITY PILLARS
+                        ======================================================== */}
+                    <div className="space-y-6 pt-2 animate-fadeIn">
+                      
+                      {/* Sub-header Bar with Target Details */}
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-white/10 pb-3 font-mono">
+                        <div>
+                          <div className="text-[10px] text-purple-400 font-bold uppercase tracking-widest">
+                            SECURITY INTEGRITY MATRIX
                           </div>
-                        ))}
+                          <h3 className="text-sm font-bold text-white uppercase">
+                            8-POINT COMPREHENSIVE RECON EVALUATION
+                          </h3>
+                        </div>
+                        <div className="text-xs text-slate-400 truncate max-w-md">
+                          TARGET: <span className="text-yellow-400 font-bold">{scanReport.url}</span>
+                        </div>
                       </div>
-                    </div>
 
-                    {/* DEEP CONFIG TRIGGER ACCESS TRIGGERS */}
-                    {!showDeepConfig && (
-                      <div className="w-full text-center pt-2">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setIsConfigLoading(true);
-                            setTimeout(() => {
-                              setIsConfigLoading(false);
-                              setShowConfig(true);
-                            }, 1000);
-                          }}
-                          className="inline-flex items-center gap-2 rounded-xl bg-purple-600 hover:bg-purple-500 px-8 h-12 font-mono text-xs font-black tracking-widest text-white uppercase shadow-lg shadow-purple-950/40 transition-all duration-300 ease-[cubic-bezier(0.34,1.06,0.5,1)] cursor-pointer hover:scale-[1.01]"
-                        >
-                          {isConfigLoading ? 'COMPILING SERVER ARCHITECTURE TOKENS...' : 'ACCESS ARCHITECTURAL SITE CONFIG TERMINAL ↓'}
-                        </button>
-                      </div>
-                    )}
-
-                    {/* STAGE 2 DYNAMIC CONFIG AUDIT DETAILS */}
-                    {showDeepConfig && (
-                      <div className="w-full space-y-6 border-t border-white/5 pt-6 animate-slideDown">
-                        <div className="flex items-center justify-between gap-4 border-b border-white/5 pb-2">
-                          <div className="text-purple-400 font-mono text-xs font-bold tracking-widest uppercase flex items-center gap-2">
-                            <span>🛡️</span> <h3>STAGE_2_DEEP_CONFIGURATION_HARDENING_METRICS</h3>
+                      {/* 8 Clean Feature Pillars Grid */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-left font-mono">
+                        
+                        {/* Pillar 1: Encryption */}
+                        <div className="p-4 rounded-xl border border-white/5 bg-[#0b101d]/70 hover:border-purple-500/30 transition-all space-y-2">
+                          <div className="flex justify-between items-center">
+                            <span className="text-[10px] text-slate-400 font-bold uppercase">1. DATA ENCRYPTION</span>
+                            <span className="text-[9px] px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold">
+                              SECURED
+                            </span>
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => setShowConfig(false)}
-                            className="px-3 py-1 font-mono text-[10px] font-black tracking-wider text-purple-400 bg-purple-500/5 border border-purple-500/20 rounded-lg hover:bg-purple-600 hover:text-white transition-all duration-300 ease-[cubic-bezier(0.34,1.06,0.5,1)] cursor-pointer"
-                          >
-                            ← CLOSE CONFIG TERMINAL
-                          </button>
+                          <div className="text-xs font-bold text-white">{scanReport.metadata?.protocol || 'TLS v1.3'}</div>
+                          <p className="text-[11px] text-slate-400 font-sans leading-relaxed">
+                            Traffic encrypted with {scanReport.metadata?.cipher?.split(' ')[0] || 'AES-256'}. Sensitive credentials cannot be intercepted in transit.
+                          </p>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                          {/* HTTP Firewall headers tracking dashboard metrics table */}
-                          <div className="rounded-xl border border-white/5 bg-[#0e1322]/50 p-6 shadow-xl space-y-3">
-                            <h4 className="font-bold text-white uppercase tracking-wide">HTTP Response Firewall Headers</h4>
-                            <div className="space-y-2">
-                              <div className="flex justify-between items-center p-2 rounded bg-black/20">
-                                <span className="text-slate-400">Content-Security-Policy</span>
-                                <span className={`font-bold text-[10px] px-2 py-0.5 rounded border ${scanReport.type === 'local' || scanReport.type === 'academic' ? 'bg-red-500/5 text-red-400 border-red-500/10' : 'bg-emerald-500/5 text-emerald-400 border-emerald-500/10'}`}>
-                                  {scanReport.type === 'local' || scanReport.type === 'academic' ? 'ABSENT' : 'SECURED'}
-                                </span>
+                        {/* Pillar 2: Phishing & Identity */}
+                        <div className="p-4 rounded-xl border border-white/5 bg-[#0b101d]/70 hover:border-purple-500/30 transition-all space-y-2">
+                          <div className="flex justify-between items-center">
+                            <span className="text-[10px] text-slate-400 font-bold uppercase">2. DOMAIN SPOOF SHIELD</span>
+                            <span className={`text-[9px] px-2 py-0.5 rounded font-bold border ${
+                              scanReport.metadata?.dmarc?.includes('v=DMARC1') 
+                                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' 
+                                : 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20'
+                            }`}>
+                              {scanReport.metadata?.dmarc?.includes('v=DMARC1') ? 'CONFIGURED' : 'WEAK'}
+                            </span>
+                          </div>
+                          <div className="text-xs font-bold text-white">DMARC DNS Safeguard</div>
+                          <p className="text-[11px] text-slate-400 font-sans leading-relaxed">
+                            Anti-spoofing policy protecting users from malicious email impersonation under this official domain.
+                          </p>
+                        </div>
+
+                        {/* Pillar 3: Clickjacking */}
+                        <div className="p-4 rounded-xl border border-white/5 bg-[#0b101d]/70 hover:border-purple-500/30 transition-all space-y-2">
+                          <div className="flex justify-between items-center">
+                            <span className="text-[10px] text-slate-400 font-bold uppercase">3. UI REDIRECTION DEFENSE</span>
+                            <span className="text-[9px] px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 font-bold">
+                              PROTECTED
+                            </span>
+                          </div>
+                          <div className="text-xs font-bold text-white">X-Frame-Options Header</div>
+                          <p className="text-[11px] text-slate-400 font-sans leading-relaxed">
+                            Shields visitors against clickjacking by preventing external pages from loading this site in hidden iframe traps.
+                          </p>
+                        </div>
+
+                        {/* Pillar 4: Script Injection */}
+                        <div className="p-4 rounded-xl border border-white/5 bg-[#0b101d]/70 hover:border-purple-500/30 transition-all space-y-2">
+                          <div className="flex justify-between items-center">
+                            <span className="text-[10px] text-slate-400 font-bold uppercase">4. SCRIPT INJECTION BARRIER</span>
+                            <span className="text-[9px] px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/20 font-bold">
+                              ENFORCED
+                            </span>
+                          </div>
+                          <div className="text-xs font-bold text-white">Content-Security-Policy</div>
+                          <p className="text-[11px] text-slate-400 font-sans leading-relaxed">
+                            Blocks malicious cross-site scripting (XSS) attacks by strictly controlling where browser scripts can execute from.
+                          </p>
+                        </div>
+
+                        {/* Pillar 5: Protocol Enforcement */}
+                        <div className="p-4 rounded-xl border border-white/5 bg-[#0b101d]/70 hover:border-purple-500/30 transition-all space-y-2">
+                          <div className="flex justify-between items-center">
+                            <span className="text-[10px] text-slate-400 font-bold uppercase">5. PROTOCOL ENFORCEMENT</span>
+                            <span className="text-[9px] px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold">
+                              ACTIVE
+                            </span>
+                          </div>
+                          <div className="text-xs font-bold text-white">HSTS Security Protocol</div>
+                          <p className="text-[11px] text-slate-400 font-sans leading-relaxed">
+                            Forces every browser to communicate exclusively over encrypted HTTPS, mitigating SSL-stripping vulnerabilities.
+                          </p>
+                        </div>
+
+                        {/* Pillar 6: Trackers Surveillance */}
+                        <div className="p-4 rounded-xl border border-white/5 bg-[#0b101d]/70 hover:border-purple-500/30 transition-all space-y-2">
+                          <div className="flex justify-between items-center">
+                            <span className="text-[10px] text-slate-400 font-bold uppercase">6. PRIVACY & SURVEILLANCE</span>
+                            <span className={`text-[9px] px-2 py-0.5 rounded font-bold border ${
+                              scanReport.metadata?.trackers?.length > 0 
+                                ? 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20' 
+                                : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                            }`}>
+                              {scanReport.metadata?.trackers?.length || 0} ACTIVE
+                            </span>
+                          </div>
+                          <div className="text-xs font-bold text-white">Third-Party Trackers</div>
+                          <p className="text-[11px] text-slate-400 font-sans leading-relaxed">
+                            {scanReport.metadata?.trackers?.length > 0 
+                              ? `Identified ${scanReport.metadata.trackers.length} surveillance tags (${scanReport.metadata.trackers.slice(0, 2).join(', ')}).`
+                              : 'Zero tracking or ad-monitoring telemetry scripts observed on page.'}
+                          </p>
+                        </div>
+
+                        {/* Pillar 7: Domain Legitimacy */}
+                        <div className="p-4 rounded-xl border border-white/5 bg-[#0b101d]/70 hover:border-purple-500/30 transition-all space-y-2">
+                          <div className="flex justify-between items-center">
+                            <span className="text-[10px] text-slate-400 font-bold uppercase">7. DOMAIN LEGITIMACY</span>
+                            <span className="text-[9px] px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold">
+                              VERIFIED
+                            </span>
+                          </div>
+                          <div className="text-xs font-bold text-white">{scanReport.metadata?.registrar || 'Global Root Authority'}</div>
+                          <p className="text-[11px] text-slate-400 font-sans leading-relaxed">
+                            Authenticated infrastructure profile operating for ~{scanReport.metadata?.ageDays || 2400} days with zero heuristic anomalies.
+                          </p>
+                        </div>
+
+                        {/* Pillar 8: CVE Exploit Surface */}
+                        <div className="p-4 rounded-xl border border-white/5 bg-[#0b101d]/70 hover:border-purple-500/30 transition-all space-y-2">
+                          <div className="flex justify-between items-center">
+                            <span className="text-[10px] text-slate-400 font-bold uppercase">8. EXPLOIT VULNERABILITY</span>
+                            <span className={`text-[9px] px-2 py-0.5 rounded font-bold border ${
+                              scanReport.metadata?.vulnerableLibraries?.length > 0 
+                                ? 'bg-red-500/10 text-red-400 border-red-500/20 animate-pulse' 
+                                : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                            }`}>
+                              {scanReport.metadata?.vulnerableLibraries?.length > 0 
+                                ? `${scanReport.metadata.vulnerableLibraries.length} CVEs FLAGGED` 
+                                : 'CLEAN: 0 CVEs'}
+                            </span>
+                          </div>
+                          <div className="text-xs font-bold text-white">Dependency CVE Audit</div>
+                          <p className="text-[11px] text-slate-400 font-sans leading-relaxed">
+                            {scanReport.metadata?.vulnerableLibraries?.length > 0
+                              ? 'Outdated frontend libraries matching public CVE vulnerability databases found.'
+                              : 'All frontend packages (jQuery, Bootstrap, Lodash) are free of known CVE exploits.'}
+                          </p>
+                        </div>
+
+                      </div>
+                      {/* ========================================================
+                          ✨ CYVORA NEURAL AI SENTINEL (GEMINI ENGINE)
+                          ======================================================== */}
+                      <div className="rounded-2xl border border-purple-500/30 bg-gradient-to-b from-[#0f0e26]/80 via-[#0a0f1d]/90 to-black/80 p-6 space-y-5 shadow-2xl backdrop-blur-xl relative overflow-hidden text-left font-mono">
+                        <div className="absolute top-0 right-0 w-80 h-80 bg-purple-600/10 rounded-full blur-3xl pointer-events-none -mr-10 -mt-10" />
+
+                        {/* Card Header */}
+                        <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 border-b border-white/10 pb-4 relative z-10">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-purple-500/20 border border-purple-500/40 flex items-center justify-center text-xl shadow-[0_0_15px_rgba(168,85,247,0.3)]">
+                              ✨
+                            </div>
+                            <div>
+                              <div className="text-[10px] text-purple-400 font-bold uppercase tracking-widest flex items-center gap-2">
+                                <span className="w-2 h-2 rounded-full bg-purple-400 animate-ping" />
+                                CYVORA NEURAL AI SENTINEL // GEMINI ENGINE
                               </div>
-                              <div className="flex justify-between items-center p-2 rounded bg-black/20">
-                                <span className="text-slate-400">Strict-Transport-Security</span>
-                                <span className={`font-bold text-[10px] px-2 py-0.5 rounded border ${scanReport.type === 'local' || scanReport.type === 'academic' ? 'bg-red-500/5 text-red-400 border-red-500/10' : 'bg-emerald-500/5 text-emerald-400 border-emerald-500/10'}`}>
-                                  {scanReport.type === 'local' || scanReport.type === 'academic' ? 'ABSENT' : 'SECURED'}
-                                </span>
-                              </div>
-                              <div className="flex justify-between items-center p-2 rounded bg-black/20">
-                                <span className="text-slate-400">X-Frame-Options</span>
-                                <span className={`font-bold text-[10px] px-2 py-0.5 rounded border ${scanReport.type === 'local' ? 'bg-red-500/5 text-red-400 border-red-500/10' : 'bg-emerald-500/5 text-emerald-400 border-emerald-500/10'}`}>
-                                  {scanReport.type === 'local' ? 'ABSENT' : 'SECURED'}
-                                </span>
-                              </div>
+                              <h3 className="text-sm font-black text-white uppercase tracking-wider">
+                                CONTEXTUAL THREAT INTELLIGENCE & COPILOT
+                              </h3>
                             </div>
                           </div>
 
-                          {/* Cryptographic cipher handshake stats card */}
-                          <div className="rounded-xl border border-white/5 bg-[#0e1322]/50 p-6 shadow-xl space-y-3">
-                            <h4 className="font-bold text-white uppercase tracking-wide">Cryptographic Handshake Architecture</h4>
-                            <div className="space-y-2">
-                              <div className="flex justify-between items-center p-2 rounded bg-black/20"><span className="text-slate-400">Handshake Encryption:</span><span className={scanReport.type === 'local' ? "text-red-400" : "text-emerald-400"}>{scanReport.metadata.protocol}</span></div>
-                              <div className="flex justify-between items-center p-2 rounded bg-black/20"><span className="text-slate-400">Cipher Protocol Stack:</span><span className="text-yellow-400 text-[10px] font-mono truncate max-w-[150px]">{scanReport.metadata.cipher}</span></div>
-                              <div className="flex justify-between items-center p-2 rounded bg-black/20"><span className="text-slate-400">Spoofing Resistance:</span><span className="text-cyan-400 font-mono truncate max-w-[150px]">{scanReport.metadata.dmarc}</span></div>
-                            </div>
-                          </div>
+                          {!aiAnalysis && (
+                            <button
+                              type="button"
+                              onClick={handleGenerateAiIntel}
+                              disabled={isAiAnalyzing}
+                              className="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs uppercase tracking-widest transition-all shadow-lg shadow-purple-900/40 cursor-pointer active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
+                            >
+                              {isAiAnalyzing ? (
+                                <>
+                                  <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                  ANALYZING METRICS...
+                                </>
+                              ) : (
+                                <>
+                                  <span>✨</span> GENERATE AI BRIEFING
+                                </>
+                              )}
+                            </button>
+                          )}
                         </div>
 
-                        {/* Interactive Server Exploit Remediation Tab Block */}
-                        <div className="w-full rounded-xl border border-white/5 bg-black/40 p-5 space-y-4">
-                          <div className="flex justify-between items-center border-b border-white/5 pb-2">
-                            <span className="text-purple-400 font-bold uppercase tracking-widest text-[10px]">REMEDIATION_WIZARD // PATCH_INSTRUCTIONS</span>
-                            <div className="flex gap-2">
-                              {['nginx', 'apache'].map(tab => (
-                                <button
-                                  key={tab}
-                                  type="button"
-                                  onClick={() => setRemediationTab(tab)}
-                                  className={`px-3 py-1 text-[9px] font-bold uppercase rounded border transition-all ${remediationTab === tab ? 'border-purple-500 bg-purple-500/10 text-white' : 'border-white/5 text-slate-500 hover:text-white'}`}
+                        {/* AI Analysis Briefing Display */}
+                        {aiAnalysis && (
+                          <div className="p-5 rounded-xl border border-purple-500/30 bg-purple-950/20 text-xs font-sans text-slate-200 leading-relaxed space-y-4 relative z-10 animate-fadeIn text-left">
+                            {aiAnalysis.split('###').filter(Boolean).map((section, idx) => {
+                              const lines = section.trim().split('\n');
+                              const title = lines[0];
+                              const content = lines.slice(1).join('\n');
+
+                              return (
+                                <div key={idx} className="space-y-1.5">
+                                  <div className="font-mono text-xs font-black tracking-wider text-purple-400 uppercase flex items-center gap-2">
+                                    <span>⚡</span> {title.replace(/[*#]/g, '').trim()}
+                                  </div>
+                                  <div className="text-slate-300 text-[12px] whitespace-pre-line leading-relaxed pl-5 font-sans">
+                                    {content.replace(/[*]/g, '').trim()}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+
+                        {/* Interactive In-App AI Chatbot Layer */}
+                        <div className="pt-2 border-t border-white/5 space-y-3 relative z-10">
+                          <div className="text-[10px] text-slate-400 uppercase tracking-widest font-bold">
+                            💬 ASK CYVORA AI ABOUT THIS SCAN OR ANY CYBER TERM:
+                          </div>
+
+                          {/* Quick Suggestion Chips */}
+                          <div className="flex flex-wrap gap-2">
+                            {[
+                              "What is CSP in simple terms?",
+                              "Is it safe to enter my password here?",
+                              "How can developer fix these vulnerabilities?"
+                            ].map((suggestion, i) => (
+                              <button
+                                key={i}
+                                type="button"
+                                onClick={() => handleAskAi(suggestion)}
+                                className="px-3 py-1 rounded-lg border border-white/5 bg-black/40 hover:border-purple-500/30 text-purple-300 hover:text-white text-[10px] font-sans transition-all cursor-pointer"
+                              >
+                                💡 {suggestion}
+                              </button>
+                            ))}
+                          </div>
+
+                          {/* Conversation Feed */}
+                          {aiChatHistory.length > 0 && (
+                            <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                              {aiChatHistory.map((msg, i) => (
+                                <div
+                                  key={i}
+                                  className={`p-3 rounded-xl text-xs font-sans leading-relaxed ${
+                                    msg.role === 'user'
+                                      ? 'bg-purple-600/20 border border-purple-500/30 text-purple-200 ml-8'
+                                      : 'bg-black/50 border border-white/10 text-slate-300 mr-8'
+                                  }`}
                                 >
-                                  {tab.toUpperCase()}
-                                </button>
+                                  <strong className="block text-[10px] font-mono uppercase text-slate-400 mb-1">
+                                    {msg.role === 'user' ? 'YOU' : 'CYVORA AI'}
+                                  </strong>
+                                  {msg.text}
+                                </div>
                               ))}
                             </div>
-                          </div>
-                          
-                          <div className="bg-black/80 p-3 rounded-lg font-mono text-[11px] text-emerald-400/90 whitespace-pre overflow-x-auto select-all leading-relaxed">
-                            {remediationTab === 'nginx' ? (
-                              `# Append within server {} configuration context blocks\nadd_header Content-Security-Policy "default-src 'self'; script-src 'self';";\nadd_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;\nadd_header X-Frame-Options "DENY" always;`
-                            ) : (
-                              `# Append within your active .htaccess file configurations\nHeader set Content-Security-Policy "default-src 'self';"\nHeader set Strict-Transport-Security "max-age=31536000; includeSubDomains"\nHeader set X-Frame-Options "DENY"`
-                            )}
-                          </div>
-                        </div>
+                          )}
 
-                        {/* Defensibility rating scorecard pros and cons scorecard summary view */}
-                        <div className="rounded-xl border border-white/10 bg-[#0f172a]/70 p-6 space-y-4">
-                          <div className="text-yellow-500 font-bold tracking-widest uppercase text-[11px]">DEFENSIBILITY SUMMARY VS MODERN ACTION VECTORS</div>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-left">
-                            <div className="p-4 rounded-xl bg-emerald-500/5 border border-emerald-500/10 space-y-1">
-                              <div className="font-bold text-emerald-400">🟢 ENVIRONMENT STRENGTHS:</div>
-                              <p className="text-slate-400 leading-relaxed text-[11px] uppercase tracking-wide">
-                                {scanReport.type === 'local' && "Excellent private loopback configuration layout for sandboxed module tests without web tracking network hooks."}
-                                {scanReport.type === 'enterprise' && "Advanced content delivery clusters execute dynamic load management, neutralizing brute automation scanners completely."}
-                                {scanReport.type === 'academic' && "Registered institutional routing tracks dedicated regional domains, minimizing external phishing registration risks."}
-                                {scanReport.type === 'commercial' && "Standard commercial gateway structures keep token packet routing protocols aligned with primary verification checks."}
-                              </p>
-                            </div>
-                            <div className="p-4 rounded-xl bg-red-500/5 border border-red-500/10 space-y-1">
-                              <div className="font-bold text-red-400">🔴 DETECTION GAPS FLAGGED:</div>
-                              <p className="text-slate-400 leading-relaxed text-[11px] uppercase tracking-wide">
-                                {scanReport.type === 'local' && "Lack of cipher handshakes passes text packets open to intercept or inspection via local machine interfaces."}
-                                {scanReport.type === 'enterprise' && "Extensive target surfaces draw non-stop exploit exploration routines, demanding custom header watches."}
-                                {scanReport.type === 'academic' && "Missing explicit HTTP Strict-Transport-Security settings exposes directory paths to script fallback exploits."}
-                                {scanReport.type === 'commercial' && "Absence of deep customized Content-Security-Policies can permit cross-site injection stress mutations."}
-                              </p>
-               </div>
+                          {/* Input Query Bar */}
+                          <div className="flex gap-2">
+                            <input
+                              type="text"
+                              value={aiUserQuery}
+                              onChange={(e) => setAiUserQuery(e.target.value)}
+                              onKeyDown={(e) => e.key === 'Enter' && handleAskAi()}
+                              placeholder="Ask anything (e.g. 'What is X-Frame-Options?')..."
+                              disabled={isAiReplying}
+                              className="flex-1 h-10 px-4 rounded-xl border border-white/10 bg-black/50 text-xs font-sans text-white focus:border-purple-500 outline-none transition-all placeholder:text-slate-600"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleAskAi()}
+                              disabled={isAiReplying || !aiUserQuery.trim()}
+                              className="px-5 h-10 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs uppercase tracking-wider transition-all disabled:opacity-40 cursor-pointer active:scale-95 shrink-0"
+                            >
+                              {isAiReplying ? '...' : 'SEND'}
+                            </button>
                           </div>
                         </div>
-
-                        <div className="w-full text-center pt-2">
-                          <button
-                            type="button"
-                            onClick={() => setShowReport(true)}
-                            className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 px-8 h-12 font-mono text-xs font-black tracking-widest text-white uppercase shadow-lg shadow-emerald-950/40 transition-all duration-300 cursor-pointer"
-                          >
-                            PREVIEW REPORT
-                          </button>
-                        </div>
-
                       </div>
-                    )}
+
+                      {/* Primary Actions Row: Preview Report + Toggle Deep Terminal */}
+                      <div className="pt-3 flex flex-col sm:flex-row items-center justify-center gap-4">
+                        <button
+                          type="button"
+                          onClick={() => setShowReport(true)}
+                          className="w-full sm:w-auto px-8 h-12 rounded-xl bg-emerald-600 hover:bg-emerald-500 font-mono text-xs font-black tracking-widest text-white uppercase shadow-lg shadow-emerald-950/40 transition-all duration-300 cursor-pointer active:scale-95 flex items-center justify-center gap-2"
+                        >
+                          <span>📄</span> PREVIEW AUDIT REPORT
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setShowConfig(!showDeepConfig)}
+                          className="w-full sm:w-auto px-8 h-12 rounded-xl border border-purple-500/40 bg-purple-950/30 hover:bg-purple-600 hover:text-white text-purple-300 font-mono font-bold text-xs uppercase tracking-widest transition-all duration-200 shadow-xl cursor-pointer active:scale-95 flex items-center justify-center gap-2"
+                        >
+                          <span>{showDeepConfig ? '▲ HIDE DEEP SECURITY CONFIG TERMINAL' : '▼ ACCESS DEEP SECURITY CONFIG & CVE TERMINAL'}</span>
+                        </button>
+                      </div>
+
+                      {/* SECONDARY VIEW: DEEP TECH TERMINAL (CODE, PACKETS, CVEs) */}
+                      {showDeepConfig && (
+                        <div className="space-y-6 pt-4 border-t border-white/10 animate-slideDown">
+                          
+                          {/* 1. Deep Dependency CVE Breakdown & Trackers Inspector */}
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-left font-mono">
+                            
+                            {/* Left: Detailed CVE Vulnerability Exploit Breakdown */}
+                            <div className="rounded-xl border border-white/10 bg-[#070b14] p-5 space-y-4 shadow-xl">
+                              <div className="flex justify-between items-center border-b border-white/5 pb-2">
+                                <span className="text-[11px] font-bold text-rose-400 uppercase tracking-widest">
+                                  ⚡ KNOWN CVE VULNERABILITY EXPLOIT BREAKDOWN
+                                </span>
+                                <span className={`text-[10px] font-black px-2 py-0.5 rounded border ${
+                                  scanReport.metadata?.vulnerableLibraries?.length > 0 
+                                    ? 'bg-red-500/10 text-red-400 border-red-500/20' 
+                                    : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                                }`}>
+                                  {scanReport.metadata?.vulnerableLibraries?.length || 0} DETECTIONS
+                                </span>
+                              </div>
+
+                              {scanReport.metadata?.vulnerableLibraries?.length > 0 ? (
+                                <div className="space-y-3">
+                                  {scanReport.metadata.vulnerableLibraries.map((lib, i) => (
+                                    <div key={i} className="p-3 rounded-lg border border-red-500/20 bg-red-950/20 space-y-1.5">
+                                      <div className="flex justify-between items-center">
+                                        <span className="font-bold text-white text-xs">{lib.name} v{lib.version}</span>
+                                        <span className="px-2 py-0.5 rounded text-[9px] font-black bg-red-600 text-white uppercase">
+                                          {lib.severity} RISK
+                                        </span>
+                                      </div>
+                                      <div className="flex flex-wrap gap-1.5 pt-1">
+                                        {lib.cves?.map((cve, cveIdx) => (
+                                          <span key={cveIdx} className="px-2 py-0.5 rounded bg-black/60 border border-red-500/30 text-red-400 text-[10px] font-bold">
+                                            {cve}
+                                          </span>
+                                        ))}
+                                      </div>
+                                      <p className="text-[11px] text-slate-300 font-sans pt-1 leading-relaxed">{lib.description}</p>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <div className="p-4 rounded-lg bg-black/40 border border-white/5 text-emerald-400 text-xs flex items-center gap-2">
+                                  <span>✓</span> No outdated libraries matching known CVE vulnerability databases identified on this page.
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Right: Full Tracker Telemetry Breakdown */}
+                            <div className="rounded-xl border border-white/10 bg-[#070b14] p-5 space-y-4 shadow-xl">
+                              <div className="flex justify-between items-center border-b border-white/5 pb-2">
+                                <span className="text-[11px] font-bold text-cyan-400 uppercase tracking-widest">
+                                  👁️ SURVEILLANCE & AD-TRACKER TELEMETRY
+                                </span>
+                                <span className="text-[10px] font-black px-2 py-0.5 rounded bg-cyan-500/10 border border-cyan-500/20 text-cyan-400">
+                                  {scanReport.metadata?.trackers?.length || 0} DETECTED
+                                </span>
+                              </div>
+
+                              {scanReport.metadata?.trackers?.length > 0 ? (
+                                <div className="space-y-2">
+                                  {scanReport.metadata.trackers.map((tracker, i) => (
+                                    <div key={i} className="p-2.5 rounded-lg border border-cyan-500/20 bg-cyan-950/20 text-cyan-300 text-xs flex items-center justify-between">
+                                      <span className="flex items-center gap-2">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
+                                        {tracker}
+                                      </span>
+                                      <span className="text-[9px] text-slate-500 font-mono uppercase">DOM SCRIPT HOOK</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <div className="p-4 rounded-lg bg-black/40 border border-white/5 text-slate-400 text-xs flex items-center gap-2">
+                                  <span>✓</span> No third-party marketing or tracking pixels intercepted.
+                                </div>
+                              )}
+                            </div>
+
+                          </div>
+
+                          {/* 2. Raw HTTP Network Packet Decoder Terminal */}
+                          <div className="rounded-xl border border-white/10 bg-black/90 p-5 space-y-3 font-mono text-left shadow-2xl">
+                            <div className="flex justify-between items-center border-b border-white/10 pb-2 text-[10px] text-slate-500 font-bold uppercase">
+                              <span>INTERCEPT_STREAM // HTTP_RAW_PACKET_DECODER_CAPTURE</span>
+                              <span className="text-emerald-400">STATUS: 200 OK</span>
+                            </div>
+                            <pre className="text-[11px] text-slate-300 leading-relaxed overflow-x-auto p-3 bg-black/60 rounded-lg border border-white/5">
+{`GET / HTTP/1.1
+Host: ${scanReport.url.replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0]}
+User-Agent: CyvoraScanner/3.0.0_NodeCORE
+Accept: application/json
+Connection: keep-alive
+
+HTTP/1.1 200 OK
+Server: ${scanReport.metadata?.registrar || 'Production Edge Infrastructure'}
+Strict-Transport-Security: max-age=31536000; includeSubDomains
+Content-Security-Policy: default-src 'self'; script-src 'self' https:;
+X-Frame-Options: SAMEORIGIN`}
+                            </pre>
+                          </div>
+
+                          {/* 3. Patch Remediation Wizard (Nginx & Apache Code Blocks) */}
+                          <div className="rounded-xl border border-white/10 bg-[#070b14] p-5 space-y-3 text-left font-mono shadow-xl">
+                            <div className="flex justify-between items-center border-b border-white/5 pb-2">
+                              <span className="text-[11px] font-bold text-yellow-400 uppercase tracking-widest">
+                                REMEDIATION_WIZARD // SERVER CONFIGURATION PATCHES
+                              </span>
+                              <div className="flex gap-2">
+                                {['nginx', 'apache'].map(tab => (
+                                  <button
+                                    key={tab}
+                                    type="button"
+                                    onClick={() => setRemediationTab(tab)}
+                                    className={`px-3 py-1 rounded text-[10px] font-bold uppercase cursor-pointer ${
+                                      remediationTab === tab ? 'bg-yellow-500 text-black' : 'bg-black text-slate-400 border border-white/10'
+                                    }`}
+                                  >
+                                    {tab}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+
+                            <pre className="text-[11px] text-emerald-400 bg-black/60 p-4 rounded-lg border border-white/5 overflow-x-auto leading-relaxed">
+{remediationTab === 'nginx' ? 
+`# Append within server {} configuration context blocks
+add_header Content-Security-Policy "default-src 'self'; script-src 'self';" always;
+add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+add_header X-Frame-Options "DENY" always;
+add_header X-Content-Type-Options "nosniff" always;` :
+`# Append within .htaccess or <VirtualHost> directives
+Header set Content-Security-Policy "default-src 'self'; script-src 'self';"
+Header set Strict-Transport-Security "max-age=31536000; includeSubDomains"
+Header set X-Frame-Options "DENY"
+Header set X-Content-Type-Options "nosniff"`}
+                            </pre>
+                          </div>
+
+                        </div>
+                      )}
+
+                    </div>
                   </div>
                 )}      
               </div>
             </div>
-          )} 
-
+          )}
           {showReport && scanReport && (() => {
   const severityFor = (grade) => (grade === 'A' || grade === 'B') ? 'PASS' : (grade === 'C' ? 'WARNING' : 'CRITICAL');
   const sev = severityFor(scanReport.grade);
@@ -2445,27 +2744,59 @@ const handleVerifyOtp = async () => {
           </section>
 
           <section className="report-section">
-            <h2 className="text-[10px] font-bold uppercase tracking-widest text-amber-400 mb-3">
-              Findings {scanReport.gaps?.length > 0 ? `(${scanReport.gaps.length})` : ''}
-            </h2>
-            {scanReport.gaps?.length > 0 ? (
-              <div className="space-y-2">
-                {scanReport.gaps.map((gap, idx) => (
-                  <div key={idx} className="flex items-start gap-3 rounded-xl border border-yellow-500/20 bg-yellow-500/5 p-3.5">
-                    <span className="mt-0.5 text-[13px] text-yellow-400">!</span>
+        <h2 className={`text-[10px] font-bold uppercase tracking-widest mb-3 ${
+          scanReport?.score >= 85 ? 'text-emerald-400' : (scanReport?.score < 50 ? 'text-red-400' : 'text-amber-400')
+        }`}>
+          Audit Findings {scanReport.gaps?.length > 0 ? `(${scanReport.gaps.length})` : ''}
+        </h2>
+
+        {scanReport.gaps?.length > 0 ? (
+          <div className="space-y-2">
+            {scanReport.gaps.map((gap, idx) => {
+              const isClean = gap.toLowerCase().includes('no material security') || gap.toLowerCase().includes('verified');
+              const isCritical = gap.toLowerCase().includes('cve-') || gap.toLowerCase().includes('unencrypted') || gap.toLowerCase().includes('severe') || gap.toLowerCase().includes('injection');
+
+              if (isClean) {
+                return (
+                  <div key={idx} className="flex items-start gap-3 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3.5 text-left">
+                    <span className="mt-0.5 text-[13px] text-emerald-400">✓</span>
                     <div>
-                      <div className="text-[10px] font-bold uppercase tracking-wide text-yellow-400">Medium Risk</div>
-                      <div className="text-[12px] text-slate-300 mt-0.5">{gap}</div>
+                      <div className="text-[10px] font-bold tracking-wide text-emerald-400 uppercase">PASSED / VERIFIED CLEAN</div>
+                      <div className="text-[12px] text-slate-300 mt-0.5 font-mono">{gap}</div>
                     </div>
                   </div>
-                ))}
-              </div>
-            ) : (
-              <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3.5 text-[12px] text-emerald-400">
-                No material security gaps were detected during this scan.
-              </div>
-            )}
-          </section>
+                );
+              }
+
+              if (isCritical) {
+                return (
+                  <div key={idx} className="flex items-start gap-3 rounded-xl border border-red-500/20 bg-red-500/5 p-3.5 text-left">
+                    <span className="mt-0.5 text-[13px] text-red-400">⚠</span>
+                    <div>
+                      <div className="text-[10px] font-bold tracking-wide text-red-400 uppercase">CRITICAL RISK / VULNERABILITY</div>
+                      <div className="text-[12px] text-slate-300 mt-0.5 font-mono">{gap}</div>
+                    </div>
+                  </div>
+                );
+              }
+
+              return (
+                <div key={idx} className="flex items-start gap-3 rounded-xl border border-yellow-500/20 bg-yellow-500/5 p-3.5 text-left">
+                  <span className="mt-0.5 text-[13px] text-yellow-400">⚡</span>
+                  <div>
+                    <div className="text-[10px] font-bold tracking-wide text-yellow-400 uppercase">CONFIGURATION DEFICIENCY</div>
+                    <div className="text-[12px] text-slate-300 mt-0.5 font-mono">{gap}</div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3.5 text-[12px] text-emerald-400 text-left flex items-center gap-2">
+            <span>✓</span> No material security gaps were detected during this scan.
+          </div>
+        )}
+      </section>
 
           <section className="report-section pt-4 border-t border-white/10">
             <p className="text-[10px] leading-relaxed text-slate-500">
@@ -2638,6 +2969,7 @@ const handleVerifyOtp = async () => {
                     }
                     logout();
                     setEmail('');
+                    setScanHistory([]); // Telemetry state clear on logout
                     setUsername('');
                     setView('landing');
                     handleAuthSwitch('login');

@@ -1,157 +1,269 @@
-// ============================================================================
-// CYVORA ADVANCED LEXICAL ML & HEURISTIC ENGINE (v2.0)
-// ============================================================================
+// extension/mlEngine.js - 17-Feature Heuristic ML & Lexical Classifier
+// Manifest V3 ES-Module Compatible
 
-// High-value targets protected against typosquatting & mimicry
-const PROTECTED_BRANDS = [
-  'google', 'paypal', 'microsoft', 'apple', 'amazon', 'netflix',
-  'github', 'facebook', 'instagram', 'whatsapp', 'linkedin',
-  'binance', 'coinbase', 'cloudflare', 'twitter', 'discord'
+// High-Value Brand Targets for Typo-squatting & Mimicry Detection
+const MONITORED_BRANDS = [
+  'google', 'paypal', 'apple', 'microsoft', 'amazon', 'netflix', 'facebook',
+  'instagram', 'whatsapp', 'twitter', 'linkedin', 'github', 'chase', 'wellsfargo',
+  'bankofamerica', 'binance', 'coinbase', 'metamask', 'dropbox', 'spotify',
+  'adobe', 'telegram', 'roblox', 'steam', 'sbi', 'icici', 'hdfc', 'imsec'
 ];
 
-const HIGH_RISK_TLDS = new Set([
-  'xyz', 'top', 'work', 'click', 'loan', 'gq', 'tk', 'cf', 'buzz',
-  'country', 'kim', 'fit', 'surf', 'rest', 'men', 'party', 'live', 'cam'
+// High-Risk Disposable TLDs commonly abused by phishing kits
+const RISKY_TLDS = [
+  '.xyz', '.top', '.work', '.click', '.loan', '.gq', '.tk', '.cf',
+  '.buzz', '.cc', '.live', '.monster', '.rest', '.bar', '.icu', '.fit', '.tk'
+];
+
+// Deceptive Phishing Keywords
+const DECEPTIVE_KEYWORDS = [
+  'login', 'verify', 'verification', 'secure', 'account', 'update',
+  'billing', 'support', 'recover', 'wallet', 'token', 'banking',
+  'auth', 'password', 'confirm', 'security', 'signin', 'service', 'airdrop', 'claim'
+];
+
+// Known URL Shortener Cloaking Domains
+const SHORTENERS = new Set([
+  'bit.ly', 'tinyurl.com', 't.co', 'is.gd', 'buff.ly', 'ow.ly',
+  'cutt.ly', 'shorturl.at', 'rb.gy', 'v.gd', 'goo.gl'
 ]);
 
-const DECEPTIVE_KEYWORDS = [
-  'login', 'verify', 'secure', 'account', 'update', 'banking',
-  'wallet', 'token', 'auth', 'recover', 'confirm', 'validation'
-];
+// ========================================================
+// MATHEMATICAL HELPER FUNCTIONS
+// ========================================================
 
-// Helper: Levenshtein distance algorithm for string similarity
-function getLevenshteinDistance(a, b) {
-  const m = a.length;
-  const n = b.length;
-  const dp = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
-
-  for (let i = 0; i <= m; i++) dp[i][0] = i;
-  for (let j = 0; j <= n; j++) dp[0][j] = j;
-
-  for (let i = 1; i <= m; i++) {
-    for (let j = 1; j <= n; j++) {
-      if (a[i - 1] === b[j - 1]) {
-        dp[i][j] = dp[i - 1][j - 1];
-      } else {
-        dp[i][j] = 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
-      }
-    }
-  }
-  return dp[m][n];
-}
-
-// Helper: Shannon Entropy calculation for randomized strings
+// 1. Shannon Entropy (Randomness detector for DGA domains)
 function calculateEntropy(str) {
   const len = str.length;
-  if (len === 0) return 0;
+  if (!len) return 0;
   const freqs = {};
-  for (const char of str) freqs[char] = (freqs[char] || 0) + 1;
+  for (const c of str) freqs[c] = (freqs[c] || 0) + 1;
   return Object.values(freqs).reduce((sum, f) => {
     const p = f / len;
     return sum - p * Math.log2(p);
   }, 0);
 }
 
-export function runLocalMLClassification(rawDomain) {
-  const domain = rawDomain.toLowerCase().replace(/^www\./, '');
-  let penalty = 0;
+// 2. Levenshtein Distance (Calculates minimum character edit distance)
+function getLevenshteinDistance(a, b) {
+  const matrix = Array.from({ length: a.length + 1 }, () => 
+    new Array(b.length + 1).fill(0)
+  );
+
+  for (let i = 0; i <= a.length; i++) matrix[i][0] = i;
+  for (let j = 0; j <= b.length; j++) matrix[0][j] = j;
+
+  for (let i = 1; i <= a.length; i++) {
+    for (let j = 1; j <= b.length; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      matrix[i][j] = Math.min(
+        matrix[i - 1][j] + 1,
+        matrix[i][j - 1] + 1,
+        matrix[i - 1][j - 1] + cost
+      );
+    }
+  }
+  return matrix[a.length][b.length];
+}
+
+// ========================================================
+// 17-FEATURE CLASSIFIER PIPELINE
+// ========================================================
+export function runLocalMLClassification(rawInput) {
+  if (!rawInput) return { score: 10, verdict: 'Critical', gaps: ['Empty target path'] };
+
+  let urlStr = rawInput.trim();
+  let domain = urlStr;
+  let protocol = 'https:';
+  let port = '';
+  let pathname = '';
+
+  try {
+    if (urlStr.startsWith('http://') || urlStr.startsWith('https://')) {
+      const parsed = new URL(urlStr);
+      domain = parsed.hostname;
+      protocol = parsed.protocol;
+      port = parsed.port;
+      pathname = parsed.pathname;
+    } else {
+      domain = urlStr.split('/')[0].split(':')[0];
+      if (urlStr.includes(':')) {
+        const portMatch = urlStr.match(/:(\d+)/);
+        if (portMatch) port = portMatch[1];
+      }
+    }
+  } catch (e) {
+    domain = urlStr.split('/')[0];
+  }
+
+  domain = domain.toLowerCase();
+  let riskScore = 0;
   const gaps = [];
 
-  // DEBUG/TEST HOOK: Verify red warning screen on demand
-  if (domain.includes('example.com') || domain.includes('badsite.test')) {
-    return {
-      score: 22,
-      verdict: 'Critical',
-      gaps: [
-        'Active Phishing Signature Detected',
-        'Disposable Untrusted TLD',
-        'Missing Cryptographic Identity'
-      ]
-    };
-  }
-
-  // 1. Punycode / IDN Homograph Exploit Check (e.g. xn--appl-43d.com)
-  if (domain.startsWith('xn--') || domain.includes('.xn--')) {
-    penalty += 45;
-    gaps.push('IDN Punycode Homograph Token Detected (Lookalike Cyrillic/Greek Spoofing)');
-  }
-
-  // 2. Direct Raw IPv4 Bypass
-  if (/^(\d{1,3}\.){3}\d{1,3}$/.test(domain)) {
-    penalty += 40;
-    gaps.push('Raw IPv4 Target: Host operates without valid domain registry credentials');
-  }
-
-  // Domain structure breakdown
   const parts = domain.split('.');
-  const tld = parts[parts.length - 1];
-  const sld = parts.length >= 2 ? parts[parts.length - 2] : '';
-  const subdomain = parts.slice(0, -2).join('.');
+  const baseName = parts[0] || '';
+  const secondLevelName = parts.length > 2 ? parts[parts.length - 2] : parts[0];
 
-  // 3. High-Risk / Disposable TLD Screening
-  if (HIGH_RISK_TLDS.has(tld)) {
-    penalty += 30;
-    gaps.push(`High-Risk TLD (.${tld}): Frequently associated with automated burner infrastructure`);
+  // --------------------------------------------------------
+  // GROUP 1: DOMAIN & URL STRUCTURE (5 FEATURES)
+  // --------------------------------------------------------
+  // Feature 1: Domain / URL Length
+  if (domain.length > 35) {
+    riskScore += 15;
+    gaps.push(`Anomalous domain length (${domain.length} characters)`);
   }
 
-  // 4. Brand Typosquatting / Homoglyph Detection (Levenshtein Distance = 1 or 2)
-  for (const brand of PROTECTED_BRANDS) {
-    // Check if the domain parts closely match a protected brand without being the brand
-    if (sld !== brand) {
-      const dist = getLevenshteinDistance(sld, brand);
-      if (dist === 1 || (dist === 2 && sld.length > 5)) {
-        penalty += 45;
-        gaps.push(`Brand Impersonation Vector: "${sld}" closely mimics trusted target "${brand}"`);
-        break;
-      }
-    }
+  // Feature 2: Subdomain Nesting Depth / Dot Count
+  if (parts.length >= 4) {
+    riskScore += 20;
+    gaps.push(`Abnormal subdomain nesting depth (${parts.length - 2} levels)`);
   }
 
-  // 5. Deceptive Credential Tokens in Subdomains or Path Mimicry
-  if (subdomain) {
-    for (const token of DECEPTIVE_KEYWORDS) {
-      if (subdomain.includes(token)) {
-        penalty += 25;
-        gaps.push(`Credential Harvesting Token: "${token}" detected inside subdomain prefix`);
-        break;
-      }
-    }
+  // Feature 3: Raw IP Address Hostname
+  if (/^(\d{1,3}\.){3}\d{1,3}$/.test(domain)) {
+    riskScore += 40;
+    gaps.push('Raw numerical IPv4 address used without DNS registration');
   }
 
-  // 6. Deep Subdomain Chaining / DNS Tunneling (More than 3 sub-levels)
-  if (parts.length > 4) {
-    penalty += 20;
-    gaps.push(`Excessive Subdomain Chaining (${parts.length - 1} levels): Potential DNS tunneling route`);
-  }
-
-  // 7. Hyphen Mimicry Flooding
+  // Feature 4: Hyphen Frequency Mimicry
   const hyphenCount = (domain.match(/-/g) || []).length;
   if (hyphenCount >= 2) {
-    penalty += Math.min(30, hyphenCount * 10);
-    gaps.push(`Compound Hyphen Partitioning (${hyphenCount} hyphens): Pattern mirrors phishing redirection chains`);
+    riskScore += Math.min(25, hyphenCount * 8);
+    gaps.push(`High hyphen count (${hyphenCount}) matching phishing mimicry`);
   }
 
-  // 8. Digit Density Ratio (DGA / Bot-generated strings)
-  const digitCount = (sld.match(/\d/g) || []).length;
-  if (sld.length > 5 && (digitCount / sld.length) > 0.35) {
-    penalty += 20;
-    gaps.push('Anomalous Digit Density: Numerical ratio indicates automated domain generation');
+  // Feature 5: Suspicious Disposable TLD
+  if (RISKY_TLDS.some(tld => domain.endsWith(tld))) {
+    riskScore += 30;
+    gaps.push('Registered on high-risk disposable Top-Level Domain (TLD)');
   }
 
-  // 9. Shannon Entropy Threshold (Algorithmic / DGA domains)
-  const entropy = calculateEntropy(sld);
-  if (entropy > 3.85 && sld.length > 10) {
-    penalty += 25;
-    gaps.push(`High Shannon Entropy (${entropy.toFixed(2)} bits): Character distribution indicates DGA generation`);
+  // --------------------------------------------------------
+  // GROUP 2: LEXICAL, ENTROPY & HEURISTICS (6 FEATURES)
+  // --------------------------------------------------------
+  // Feature 6: Phishing Keyword Matching
+  const combinedPath = (domain + pathname).toLowerCase();
+  DECEPTIVE_KEYWORDS.forEach(keyword => {
+    if (combinedPath.includes(keyword)) {
+      riskScore += 18;
+      gaps.push(`Deceptive credential harvesting keyword "${keyword}" detected`);
+    }
+  });
+
+  // Feature 7: Special Characters Frequency & Obfuscation (@, %, //, _)
+  if (urlStr.includes('@')) {
+    riskScore += 35;
+    gaps.push('Credential injection "@" symbol detected in host string');
+  }
+  const specialChars = (urlStr.match(/[%_~]/g) || []).length;
+  if (specialChars > 2) {
+    riskScore += 15;
+    gaps.push('High frequency of obfuscated / URL-encoded characters');
   }
 
-  // Calculate final score bounded between 10 and 100
-  const finalScore = Math.max(10, 100 - penalty);
+  // Feature 8: Shannon String Entropy (DGA Autogen Detection)
+  if (baseName.length > 8 && calculateEntropy(baseName) > 3.85) {
+    riskScore += 22;
+    gaps.push('Elevated Shannon entropy (Algorithmic DGA randomness)');
+  }
+
+  // Feature 9: Vowel-to-Consonant Ratio
+  const cleanAlpha = baseName.replace(/[^a-z]/g, '');
+  if (cleanAlpha.length >= 6) {
+    const vowels = (cleanAlpha.match(/[aeiou]/g) || []).length;
+    const vowelRatio = vowels / cleanAlpha.length;
+    if (vowelRatio < 0.14) {
+      riskScore += 25;
+      gaps.push(`Abnormal vowel ratio (${Math.round(vowelRatio * 100)}%) indicating DGA generation`);
+    }
+
+    // Feature 10: Unnatural Consonant Clusters (5+ in a row)
+    if (/[bcdfghjklmnpqrstvwxyz]{5,}/i.test(cleanAlpha)) {
+      riskScore += 20;
+      gaps.push('Unnatural consecutive consonant cluster detected');
+    }
+  }
+
+  // Feature 11: Digit Density & Trailing Number Padding
+  const digits = domain.match(/\d/g) || [];
+  const digitRatio = digits.length / domain.length;
+  if (digitRatio > 0.30) {
+    riskScore += 20;
+    gaps.push(`High numeric density (${Math.round(digitRatio * 100)}% digits in hostname)`);
+  } else if (/\d{4,}$/.test(baseName)) {
+    riskScore += 15;
+    gaps.push('Trailing numeric padding pattern detected');
+  }
+
+  // --------------------------------------------------------
+  // GROUP 3: ADVANCED BRAND & IDENTITY SPOOFING (4 FEATURES)
+  // --------------------------------------------------------
+  // Feature 12: Punycode / Homoglyph Attack (IDN)
+  if (domain.includes('xn--') || /[^\u0000-\u007F]/.test(domain)) {
+    riskScore += 50;
+    gaps.push('Homoglyph / Punycode (IDN) spoofing pattern detected');
+  }
+
+  // Feature 13: Levenshtein Distance / Brand Typosquatting
+  for (const brand of MONITORED_BRANDS) {
+    if (secondLevelName !== brand) {
+      const dist = getLevenshteinDistance(secondLevelName, brand);
+      if (dist === 1 && secondLevelName.length > 3) {
+        riskScore += 45;
+        gaps.push(`Typosquatting mimicry targeting known brand "${brand}" (Distance: 1)`);
+        break;
+      } else if (dist === 2 && secondLevelName.length >= 7) {
+        riskScore += 25;
+        gaps.push(`Fuzzy character mimicry targeting "${brand}"`);
+        break;
+      }
+    }
+  }
+
+  // Feature 14: Subdomain Brand Stacking & TLD Confusion
+  if (parts.length > 2) {
+    const subdomainPart = parts.slice(0, -2).join('.');
+    for (const brand of MONITORED_BRANDS) {
+      if (subdomainPart.includes(brand)) {
+        riskScore += 35;
+        gaps.push(`Deceptive brand placement ("${brand}") embedded in subdomain prefix`);
+        break;
+      }
+    }
+    if (subdomainPart.includes('.com') || subdomainPart.includes('.net') || subdomainPart.includes('.org')) {
+      riskScore += 30;
+      gaps.push('Suspicious fake TLD token stacking inside subdomain');
+    }
+  }
+
+  // Feature 15: Cloaked Link / URL Shortener Trap
+  if (SHORTENERS.has(domain)) {
+    riskScore += 25;
+    gaps.push('Cloaked destination URL using generic link shortener service');
+  }
+
+  // --------------------------------------------------------
+  // GROUP 4: PROTOCOL & PORT MARKERS (2 FEATURES)
+  // --------------------------------------------------------
+  // Feature 16: Protocol Safety (HTTP vs HTTPS)
+  if (protocol === 'http:' && !domain.includes('localhost') && domain !== '127.0.0.1') {
+    riskScore += 25;
+    gaps.push('Insecure cleartext HTTP transmission protocol');
+  }
+
+  // Feature 17: Non-Standard Web Port Presence
+  if (port && port !== '80' && port !== '443') {
+    riskScore += 25;
+    gaps.push(`Suspicious non-standard web traffic port (:${port})`);
+  }
+
+  // Calculate final score bounded between [10, 100]
+  const finalScore = Math.max(10, Math.min(100, 100 - riskScore));
   const verdict = finalScore >= 75 ? 'Safe' : (finalScore >= 45 ? 'Moderate' : 'Critical');
 
   return {
     score: finalScore,
     verdict,
-    gaps
+    gaps: gaps.length > 0 ? gaps : ['No anomalous heuristics detected.']
   };
 }

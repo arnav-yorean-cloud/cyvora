@@ -26,7 +26,17 @@ const ScanSchema = new mongoose.Schema({
     protocol: { type: String, default: 'HTTP/1.1' },
     cipher: { type: String, default: 'None' },
     dmarc: { type: String, default: 'Not Configured' },
-    ageDays: { type: Number, default: 0 }
+    ageDays: { type: Number, default: 0 },
+    trackers: { type: [String], default: [] },
+    vulnerableLibraries: [
+      {
+        name: String,
+        version: String,
+        cves: [String],
+        severity: String,
+        description: String
+      }
+    ]
   },
   gaps: [String],
   cachedAt: {
