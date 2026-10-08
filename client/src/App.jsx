@@ -1461,11 +1461,12 @@ const handleVerifyOtp = async () => {
         {/* ========================================================
             ANIMSHELF UPGRADE: EXPANDABLE TERMINAL ICON RAIL DOCK
             ======================================================== */}
-        <aside className="absolute left-0 top-0 bottom-0 z-30 w-16 hover:w-64 bg-[#070a13]/95 backdrop-blur-xl border-r border-[#1e293b] flex flex-col justify-between p-3 select-none shrink-0 transition-all duration-300 ease-[cubic-bezier(0.34,1.06,0.5,1)] group shadow-2xl shadow-black/80">
+            <aside className="absolute left-0 top-0 bottom-0 z-30 w-16 hover:w-64 bg-[#080d1a]/95 backdrop-blur-xl border-r border-slate-800 flex flex-col justify-between p-3 select-none shrink-0 transition-all duration-300 ease-[cubic-bezier(0.34,1.06,0.5,1)] group shadow-2xl shadow-black/80">
           <div className="space-y-6">
+            
             {/* Cyvora Verified Identity Badge Header */}
-            <div className="flex items-center gap-3 border-b border-[#1e293b] pb-4 h-12 overflow-hidden whitespace-nowrap px-1.5">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-600 to-cyan-500 flex items-center justify-center text-white shrink-0 shadow-[0_0_12px_rgba(147,51,234,0.4)]">
+            <div className="flex items-center gap-3 border-b border-slate-800 pb-4 h-12 overflow-hidden whitespace-nowrap px-1.5">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-600 to-cyan-500 flex items-center justify-center text-white shrink-0 shadow-[0_0_12px_rgba(99,102,241,0.3)]">
                 <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                 </svg>
@@ -1475,57 +1476,62 @@ const handleVerifyOtp = async () => {
               </div>
             </div>
 
-            {/* Navigation Tab Nodes (Equipped with Active Spring Pins) */}
+            {/* Navigation Tab Nodes */}
             <nav className="space-y-2 flex flex-col">
+              
+              {/* Home */}
               <button 
                 type="button"
                 onClick={() => setDashSubView('home')}
                 className={`w-full font-mono text-xs font-bold tracking-wider h-11 px-3 rounded-xl border flex items-center gap-4 transition-all cursor-pointer overflow-hidden ${
-                  dashSubView === 'home' ? 'border-purple-500 bg-purple-500/10 text-white' : 'border-transparent text-slate-400 hover:text-white hover:bg-[#111827]'
+                  dashSubView === 'home' ? 'border-indigo-500/60 bg-indigo-950/30 text-white' : 'border-transparent text-slate-400 hover:text-white hover:bg-slate-800/50'
                 }`}
               >
-                <span className={`shrink-0 flex items-center justify-center w-5 h-5 ${dashSubView === 'home' ? 'text-purple-400' : 'text-slate-400'}`}>
+                <span className={`shrink-0 flex items-center justify-center w-5 h-5 ${dashSubView === 'home' ? 'text-indigo-400' : 'text-slate-400'}`}>
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
                 </span>
                 <span className="opacity-0 group-hover:opacity-100 whitespace-nowrap transition-opacity duration-200">HOME</span>
               </button>
 
+              {/* Profile */}
               <button 
                 type="button"
                 onClick={() => setDashSubView('profile')}
                 className={`w-full font-mono text-xs font-bold tracking-wider h-11 px-3 rounded-xl border flex items-center gap-4 transition-all cursor-pointer overflow-hidden ${
-                  dashSubView === 'profile' ? 'border-purple-500 bg-purple-500/10 text-white' : 'border-transparent text-slate-400 hover:text-white hover:bg-[#111827]'
+                  dashSubView === 'profile' ? 'border-indigo-500/60 bg-indigo-950/30 text-white' : 'border-transparent text-slate-400 hover:text-white hover:bg-slate-800/50'
                 }`}
               >
-                <span className={`shrink-0 flex items-center justify-center w-5 h-5 ${dashSubView === 'profile' ? 'text-purple-400' : 'text-slate-400'}`}>
+                <span className={`shrink-0 flex items-center justify-center w-5 h-5 ${dashSubView === 'profile' ? 'text-indigo-400' : 'text-slate-400'}`}>
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
                 </span>
                 <span className="opacity-0 group-hover:opacity-100 whitespace-nowrap transition-opacity duration-200">PROFILE</span>
               </button>
 
               <div className="pt-2 h-6 overflow-hidden">
-                <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 font-mono text-[11px] font-bold text-red-500/50 tracking-widest uppercase pl-3">FEATURES</div>
-                <div className="group-hover:hidden w-6 h-[1px] bg-[#1e293b] mx-auto mt-2" />
+                <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 font-mono text-[10px] font-bold text-slate-500 tracking-widest uppercase pl-3">TOOLS</div>
+                <div className="group-hover:hidden w-6 h-[1px] bg-slate-800 mx-auto mt-2" />
               </div>
 
+              {/* URL Security Scanner */}
               <button 
                 type="button"
                 onClick={() => setDashSubView('scanner')}
                 className={`w-full text-left font-mono text-xs font-bold tracking-wider h-11 px-3 rounded-xl border transition-all flex items-center gap-4 cursor-pointer overflow-hidden ${
-                  dashSubView === 'scanner' ? 'border-purple-500 bg-purple-500/10 text-white' : 'border-transparent text-slate-400 hover:text-white hover:bg-[#111827]'
+                  dashSubView === 'scanner' ? 'border-indigo-500/60 bg-indigo-950/30 text-white' : 'border-transparent text-slate-400 hover:text-white hover:bg-slate-800/50'
                 }`}
               >
-                <span className={`shrink-0 flex items-center justify-center w-5 h-5 ${dashSubView === 'scanner' ? 'text-purple-400' : 'text-slate-400'}`}>
+                <span className={`shrink-0 flex items-center justify-center w-5 h-5 ${dashSubView === 'scanner' ? 'text-indigo-400' : 'text-slate-400'}`}>
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><circle cx="12" cy="12" r="10"/><line x1="22" y1="12" x2="18" y2="12"/><line x1="6" y1="12" x2="2" y2="12"/><line x1="12" y1="6" x2="12" y2="2"/><line x1="12" y1="22" x2="12" y2="18"/></svg>
                 </span>
                 <span className="opacity-0 group-hover:opacity-100 whitespace-nowrap transition-opacity duration-200">URL SECURITY SCANNER</span>
               </button>
 
+              {/* Breach Checker */}
               <button 
                 type="button"
                 onClick={() => setDashSubView('breach')}
                 className={`w-full text-left font-mono text-xs font-bold tracking-wider h-11 px-3 rounded-xl border transition-all flex items-center gap-4 cursor-pointer overflow-hidden ${
-                  dashSubView === 'breach' ? 'border-rose-500 bg-rose-500/10 text-white' : 'border-transparent text-slate-400 hover:text-white hover:bg-[#111827]'
+                  dashSubView === 'breach' ? 'border-rose-500/60 bg-rose-950/20 text-white' : 'border-transparent text-slate-400 hover:text-white hover:bg-slate-800/50'
                 }`}
               >
                 <span className={`shrink-0 flex items-center justify-center w-5 h-5 ${dashSubView === 'breach' ? 'text-rose-400' : 'text-slate-400'}`}>
@@ -1533,26 +1539,28 @@ const handleVerifyOtp = async () => {
                 </span>
                 <span className="opacity-0 group-hover:opacity-100 whitespace-nowrap transition-opacity duration-200">BREACH CHECKER</span>
               </button>
-
               
             </nav>
           </div>
 
           {/* Footer Navigation Segment */}
-          <div className="space-y-2 border-t border-[#1e293b] pt-4 overflow-hidden">
+          <div className="space-y-2 border-t border-slate-800 pt-4 overflow-hidden">
+            
+            {/* Contact */}
             <button 
               type="button"
               onClick={() => setDashSubView('contact')}
               className={`w-full text-left font-mono text-xs font-bold tracking-wider h-11 px-3 rounded-xl border transition-all flex items-center gap-4 cursor-pointer overflow-hidden ${
-                dashSubView === 'contact' ? 'border-purple-500 bg-purple-500/10 text-white' : 'border-transparent text-slate-400 hover:text-white hover:bg-[#111827]'
+                dashSubView === 'contact' ? 'border-indigo-500/60 bg-indigo-950/30 text-white' : 'border-transparent text-slate-400 hover:text-white hover:bg-slate-800/50'
               }`}
             >
-              <span className={`shrink-0 flex items-center justify-center w-5 h-5 ${dashSubView === 'contact' ? 'text-purple-400' : 'text-slate-400'}`}>
+              <span className={`shrink-0 flex items-center justify-center w-5 h-5 ${dashSubView === 'contact' ? 'text-indigo-400' : 'text-slate-400'}`}>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
               </span>
               <span className="opacity-0 group-hover:opacity-100 whitespace-nowrap transition-opacity duration-200">CONTACT US</span>
             </button>
-            {/* CYVORA SHIELD EXTENSION DOWNLOAD ACTION */}
+
+            {/* Extension Modal Action */}
             <button 
               type="button"
               onClick={() => {
@@ -1564,29 +1572,31 @@ const handleVerifyOtp = async () => {
                   "Once loaded, Cyvora Shield monitors your active tabs in the background automatically."
                 );
               }}
-              className="w-full font-mono text-xs font-bold tracking-wider h-11 px-3 rounded-xl text-purple-300 hover:bg-purple-600/20 border border-purple-500/20 bg-purple-500/5 transition-all flex items-center gap-4 cursor-pointer overflow-hidden"
+              className="w-full font-mono text-xs font-bold tracking-wider h-11 px-3 rounded-xl text-cyan-300 hover:bg-cyan-500/10 border border-cyan-500/20 bg-cyan-500/5 transition-all flex items-center gap-4 cursor-pointer overflow-hidden"
               title="Install Cyvora Shield Browser Extension"
             >
-              <span className="shrink-0 flex items-center justify-center w-5 h-5 text-purple-400">
-                <svg className="w-4 h-4 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              <span className="shrink-0 flex items-center justify-center w-5 h-5 text-cyan-400">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                 </svg>
               </span>
-              <span className="opacity-0 group-hover:opacity-100 whitespace-nowrap transition-opacity duration-200 uppercase text-[11px] text-purple-300">
+              <span className="opacity-0 group-hover:opacity-100 whitespace-nowrap transition-opacity duration-200 uppercase text-[11px] text-cyan-300">
                 CYVORA EXTENSION
               </span>
             </button>
             
+            {/* Logout */}
             <button 
               type="button"
               onClick={() => setShowLogoutModal(true)} 
-              className="w-full font-mono text-xs font-bold tracking-wider h-11 px-3 rounded-xl text-red-400 hover:bg-red-500/10 border border-transparent transition-all flex items-center gap-4 cursor-pointer overflow-hidden"
+              className="w-full font-mono text-xs font-bold tracking-wider h-11 px-3 rounded-xl text-rose-400 hover:bg-rose-500/10 border border-transparent transition-all flex items-center gap-4 cursor-pointer overflow-hidden"
             >
-              <span className="shrink-0 flex items-center justify-center w-5 h-5 text-red-400">
+              <span className="shrink-0 flex items-center justify-center w-5 h-5 text-rose-400">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
               </span>
               <span className="opacity-0 group-hover:opacity-100 whitespace-nowrap transition-opacity duration-200">LOG OUT</span>
             </button>
+
           </div>
         </aside>
 
@@ -1632,220 +1642,265 @@ const handleVerifyOtp = async () => {
               <div className="w-full flex-1 overflow-y-auto px-4 py-6 md:p-8 scroll-smooth animate-fadeIn relative z-10 flex flex-col items-center">
                 <div className="max-w-7xl w-full space-y-6 pb-24 text-left font-mono">
                   
-                  {/* Top HUD Banner: Operator Identity & Quick Actions (Scanner + Breach Checker) */}
-                  <div className="w-full rounded-2xl border border-purple-500/20 bg-gradient-to-r from-[#0c1022]/90 via-[#0a0f1d]/80 to-[#120f26]/90 p-6 md:p-8 backdrop-blur-xl shadow-2xl relative overflow-hidden flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
-                    <div className="absolute top-0 right-0 w-96 h-96 bg-purple-600/10 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20" />
+                 {/* Top Header Banner: Overview & Navigation Actions */}
+                  <div className="w-full rounded-2xl border border-slate-800 bg-[#0c1222]/80 p-6 md:p-7 backdrop-blur-xl shadow-lg flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
                     
-                    <div className="space-y-2 relative z-10">
-                      <div className="flex items-center gap-2 text-xs font-bold text-emerald-400 tracking-widest uppercase">
-                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-                        CYVORA TELEMETRY HUB // ACTIVE SURVEILLANCE
+                    <div className="space-y-1.5">
+                      <div className="flex items-center gap-2 text-xs font-semibold text-emerald-400 tracking-wide uppercase">
+                        <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                        Security Overview • Active Monitoring
                       </div>
-                      <h1 className="text-2xl md:text-3xl font-black text-white uppercase tracking-tight">
-                        COMMAND PORTAL: <span className="text-purple-400">{username || 'OPERATOR'}</span>
+                      <h1 className="text-2xl md:text-3xl font-bold text-white tracking-tight">
+                        Security Dashboard <span className="text-slate-400 text-lg font-normal">| {username || 'OPERATOR'}</span>
                       </h1>
                       <p className="text-xs text-slate-400 max-w-2xl font-sans leading-relaxed">
-                        Continuous domain evaluation active. Automated background interception via Cyvora Shield Extension synchronized with real-time cryptographic scanner telemetry.
+                        Continuous domain evaluation active. Automated background interception synchronized with on-demand scanner telemetry.
                       </p>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-3 relative z-10 shrink-0">
+                    <div className="flex flex-wrap items-center gap-3 shrink-0">
                       <button
                         type="button"
                         onClick={() => setDashSubView('scanner')}
-                        className="h-11 px-5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs uppercase tracking-wider transition-all duration-200 cursor-pointer shadow-lg shadow-purple-900/30 flex items-center gap-2 active:scale-95"
+                        className="h-10 px-5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs tracking-wide transition-all shadow-md cursor-pointer flex items-center gap-2 active:scale-95"
                       >
-                        <span>⚡</span> LAUNCH URL SCANNER
+                        <span>⚡</span> Launch URL Scanner
                       </button>
 
                       <button
                         type="button"
                         onClick={() => setDashSubView('breach')}
-                        className="h-11 px-5 rounded-xl border border-rose-500/40 bg-rose-600/20 hover:bg-rose-600 hover:border-transparent text-rose-300 hover:text-white font-bold text-xs uppercase tracking-wider transition-all duration-200 cursor-pointer shadow-lg shadow-rose-950/40 flex items-center gap-2 active:scale-95"
+                        className="h-10 px-5 rounded-xl border border-slate-700 bg-slate-800/70 hover:bg-slate-700 text-slate-200 font-semibold text-xs tracking-wide transition-all cursor-pointer flex items-center gap-2 active:scale-95"
                       >
-                        <span>🛡️</span> DATA BREACH CHECKER
+                        <span>🛡️</span> Data Breach Checker
                       </button>
                     </div>
                   </div>
 
                   {/* 4 Core KPI Metrics Grid */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                    {/* KPI 1: Total Inspected Sites */}
+                    
+                    {/* Card 1: Total Visited Sites */}
                     <div 
                       onClick={() => setDashboardFilter('all')}
-                      className={`p-5 rounded-2xl border transition-all cursor-pointer group ${
+                      className={`p-5 rounded-xl border transition-all cursor-pointer ${
                         dashboardFilter === 'all' 
-                          ? 'border-purple-500 bg-purple-500/10 shadow-[0_0_20px_rgba(168,85,247,0.15)]' 
-                          : 'border-white/5 bg-[#090d16]/60 hover:border-white/20'
+                          ? 'border-indigo-500/60 bg-indigo-950/20 shadow-md' 
+                          : 'border-slate-800 bg-[#0c1222]/70 hover:border-slate-700'
                       }`}
                     >
-                      <div className="flex justify-between items-center text-slate-400 text-[10px] uppercase font-bold tracking-widest">
-                        <span>TOTAL VISITED SITES</span>
-                        <span className="text-purple-400 text-base">🌐</span>
+                      <div className="flex justify-between items-center text-slate-400 text-xs font-medium">
+                        <span>Total Visited Sites</span>
+                        <span className="text-indigo-400 text-sm">🌐</span>
                       </div>
-                      <div className="text-3xl font-black text-white mt-2">{totalScans}</div>
-                      <div className="mt-3 flex items-center justify-between text-[10px] text-slate-400 border-t border-white/5 pt-2">
-                        <span>MANUAL: <strong className="text-white">{manualScans.length}</strong></span>
-                        <span>EXTENSION: <strong className="text-cyan-400">{extensionScans.length}</strong></span>
+                      <div className="text-3xl font-bold text-white mt-2 font-mono">{totalScans}</div>
+                      <div className="mt-3 flex items-center justify-between text-xs text-slate-400 border-t border-slate-800/80 pt-2 font-mono">
+                        <span>Manual: <strong className="text-slate-200">{manualScans.length}</strong></span>
+                        <span>Extension: <strong className="text-cyan-400">{extensionScans.length}</strong></span>
                       </div>
                     </div>
 
-                    {/* KPI 2: Extension Detections */}
+                    {/* Card 2: Extension Intercepts */}
                     <div 
                       onClick={() => setDashboardFilter('extension')}
-                      className={`p-5 rounded-2xl border transition-all cursor-pointer group ${
+                      className={`p-5 rounded-xl border transition-all cursor-pointer ${
                         dashboardFilter === 'extension' 
-                          ? 'border-cyan-500 bg-cyan-500/10 shadow-[0_0_20px_rgba(6,182,212,0.15)]' 
-                          : 'border-white/5 bg-[#090d16]/60 hover:border-white/20'
+                          ? 'border-cyan-500/60 bg-cyan-950/20 shadow-md' 
+                          : 'border-slate-800 bg-[#0c1222]/70 hover:border-slate-700'
                       }`}
                     >
-                      <div className="flex justify-between items-center text-slate-400 text-[10px] uppercase font-bold tracking-widest">
-                        <span>SHIELD AUTO-FLAGGED</span>
-                        <span className="text-cyan-400 text-base">🛡️</span>
+                      <div className="flex justify-between items-center text-slate-400 text-xs font-medium">
+                        <span>Extension Intercepts</span>
+                        <span className="text-cyan-400 text-sm">🛡️</span>
                       </div>
-                      <div className="text-3xl font-black text-cyan-400 mt-2">{extensionScans.length}</div>
-                      <div className="mt-3 text-[10px] text-slate-400 border-t border-white/5 pt-2 flex justify-between">
-                        <span>TAB MONITOR</span>
-                        <span className="text-emerald-400 font-bold">100% ONLINE</span>
+                      <div className="text-3xl font-bold text-cyan-400 mt-2 font-mono">{extensionScans.length}</div>
+                      <div className="mt-3 text-xs text-slate-400 border-t border-slate-800/80 pt-2 flex justify-between font-mono">
+                        <span>Tab Monitor</span>
+                        <span className="text-emerald-400 font-semibold">Active</span>
                       </div>
                     </div>
 
-                    {/* KPI 3: Safe Domains (Tier A & B) */}
+                    {/* Card 3: Safe Websites */}
                     <div 
                       onClick={() => setDashboardFilter('safe')}
-                      className={`p-5 rounded-2xl border transition-all cursor-pointer group ${
+                      className={`p-5 rounded-xl border transition-all cursor-pointer ${
                         dashboardFilter === 'safe' 
-                          ? 'border-emerald-500 bg-emerald-500/10 shadow-[0_0_20px_rgba(16,185,129,0.15)]' 
-                          : 'border-white/5 bg-[#090d16]/60 hover:border-white/20'
+                          ? 'border-emerald-500/60 bg-emerald-950/20 shadow-md' 
+                          : 'border-slate-800 bg-[#0c1222]/70 hover:border-slate-700'
                       }`}
                     >
-                      <div className="flex justify-between items-center text-slate-400 text-[10px] uppercase font-bold tracking-widest">
-                        <span>HEALTHY / SAFE SITES</span>
-                        <span className="text-emerald-400 text-base">✓</span>
+                      <div className="flex justify-between items-center text-slate-400 text-xs font-medium">
+                        <span>Safe Websites</span>
+                        <span className="text-emerald-400 text-sm">✓</span>
                       </div>
-                      <div className="text-3xl font-black text-emerald-400 mt-2">{safeSites.length}</div>
-                      <div className="mt-3 text-[10px] text-slate-400 border-t border-white/5 pt-2 flex justify-between">
-                        <span>DEFENSE RATIO</span>
-                        <span className="text-emerald-400 font-bold">{safePercentage}%</span>
+                      <div className="text-3xl font-bold text-emerald-400 mt-2 font-mono">{safeSites.length}</div>
+                      <div className="mt-3 text-xs text-slate-400 border-t border-slate-800/80 pt-2 flex justify-between font-mono">
+                        <span>Safe Ratio</span>
+                        <span className="text-emerald-400 font-semibold">{safePercentage}%</span>
                       </div>
                     </div>
 
-                    {/* KPI 4: Threat / Malicious Sites (Tier C & F) */}
+                    {/* Card 4: Flagged Risks */}
                     <div 
                       onClick={() => setDashboardFilter('threats')}
-                      className={`p-5 rounded-2xl border transition-all cursor-pointer group ${
+                      className={`p-5 rounded-xl border transition-all cursor-pointer ${
                         dashboardFilter === 'threats' 
-                          ? 'border-red-500 bg-red-500/10 shadow-[0_0_20px_rgba(239,68,68,0.15)]' 
-                          : 'border-white/5 bg-[#090d16]/60 hover:border-white/20'
+                          ? 'border-rose-500/60 bg-rose-950/20 shadow-md' 
+                          : 'border-slate-800 bg-[#0c1222]/70 hover:border-slate-700'
                       }`}
                     >
-                      <div className="flex justify-between items-center text-slate-400 text-[10px] uppercase font-bold tracking-widest">
-                        <span>FLAGGED THREATS / RISKS</span>
-                        <span className="text-red-400 text-base">⚠️</span>
+                      <div className="flex justify-between items-center text-slate-400 text-xs font-medium">
+                        <span>Flagged High Risks</span>
+                        <span className="text-rose-400 text-sm">⚠️</span>
                       </div>
-                      <div className="text-3xl font-black text-red-400 mt-2">{harmfulSites.length}</div>
-                      <div className="mt-3 text-[10px] text-slate-400 border-t border-white/5 pt-2 flex justify-between">
-                        <span>THREAT RATIO</span>
-                        <span className="text-red-400 font-bold">{threatPercentage}%</span>
+                      <div className="text-3xl font-bold text-rose-400 mt-2 font-mono">{harmfulSites.length}</div>
+                      <div className="mt-3 text-xs text-slate-400 border-t border-slate-800/80 pt-2 flex justify-between font-mono">
+                        <span>Risk Ratio</span>
+                        <span className="text-rose-400 font-semibold">{threatPercentage}%</span>
                       </div>
                     </div>
                   </div>
-
-                  {/* Visual Posture Breakdown & Tier Distribution Bar */}
-                  <div className="w-full bg-[#090d16]/60 border border-white/5 rounded-2xl p-6 space-y-4">
-                    <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2 border-b border-white/5 pb-3">
+{/* Clean Tier Distribution Bar & Selector Cards */}
+                  <div className="w-full bg-[#0c1222]/70 border border-slate-800 rounded-xl p-6 space-y-4 text-left">
+                    <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2 border-b border-slate-800/80 pb-3">
                       <div>
-                        <div className="text-[10px] text-yellow-500 font-black tracking-widest uppercase">POSTURE COMPLIANCE MATRIX</div>
-                        <h3 className="text-base font-bold text-white uppercase mt-0.5">TIER ARCHITECTURE DISTRIBUTION</h3>
+                        <div className="text-xs text-indigo-400 font-semibold uppercase tracking-wider">Classification Overview</div>
+                        <h3 className="text-base font-bold text-white mt-0.5">Scanned Domains by Risk Level</h3>
                       </div>
-                      <div className="text-xs text-slate-400">
+                      <div className="text-xs text-slate-400 font-mono">
                         Audited Nodes: <span className="text-white font-bold">{totalScans}</span>
                       </div>
                     </div>
 
-                    {/* Stacked Proportional Distribution Track Bar */}
-                    <div className="w-full h-4 bg-black/50 rounded-full border border-white/10 overflow-hidden flex p-0.5 gap-0.5">
-                      {tierA.length > 0 && <div title={`Tier A: ${tierA.length}`} style={{ width: `${(tierA.length / totalScans) * 100}%` }} className="h-full bg-emerald-500 rounded-sm" />}
-                      {tierB.length > 0 && <div title={`Tier B: ${tierB.length}`} style={{ width: `${(tierB.length / totalScans) * 100}%` }} className="h-full bg-cyan-400 rounded-sm" />}
-                      {tierC.length > 0 && <div title={`Tier C: ${tierC.length}`} style={{ width: `${(tierC.length / totalScans) * 100}%` }} className="h-full bg-yellow-400 rounded-sm" />}
-                      {tierF.length > 0 && <div title={`Tier F: ${tierF.length}`} style={{ width: `${(tierF.length / totalScans) * 100}%` }} className="h-full bg-red-500 rounded-sm" />}
+                    {/* Proportional Distribution Bar */}
+                    <div className="w-full h-3 bg-slate-900 rounded-full border border-slate-800 overflow-hidden flex p-0.5 gap-0.5">
+                      {totalScans === 0 ? (
+                        <div className="w-full h-full bg-slate-800/50 rounded-full" />
+                      ) : (
+                        <>
+                          {tierA.length > 0 && (
+                            <div 
+                              title={`Tier A: ${tierA.length}`} 
+                              style={{ width: `${(tierA.length / totalScans) * 100}%` }} 
+                              className="h-full bg-emerald-500 rounded-sm transition-all duration-300" 
+                            />
+                          )}
+                          {tierB.length > 0 && (
+                            <div 
+                              title={`Tier B: ${tierB.length}`} 
+                              style={{ width: `${(tierB.length / totalScans) * 100}%` }} 
+                              className="h-full bg-cyan-400 rounded-sm transition-all duration-300" 
+                            />
+                          )}
+                          {tierC.length > 0 && (
+                            <div 
+                              title={`Tier C: ${tierC.length}`} 
+                              style={{ width: `${(tierC.length / totalScans) * 100}%` }} 
+                              className="h-full bg-amber-400 rounded-sm transition-all duration-300" 
+                            />
+                          )}
+                          {tierF.length > 0 && (
+                            <div 
+                              title={`Tier F: ${tierF.length}`} 
+                              style={{ width: `${(tierF.length / totalScans) * 100}%` }} 
+                              className="h-full bg-rose-500 rounded-sm transition-all duration-300" 
+                            />
+                          )}
+                        </>
+                      )}
                     </div>
 
-                    {/* Clickable Tier Interactive Selector Cards */}
+                    {/* Filter Selector Cards for Tiers */}
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
                       <button 
                         type="button"
                         onClick={() => setDashboardFilter(dashboardFilter === 'tierA' ? 'all' : 'tierA')}
-                        className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
-                          dashboardFilter === 'tierA' ? 'border-emerald-500 bg-emerald-500/15' : 'border-white/5 bg-black/30 hover:border-emerald-500/30'
+                        className={`p-3 rounded-lg border text-left transition-all cursor-pointer ${
+                          dashboardFilter === 'tierA' 
+                            ? 'border-emerald-500 bg-emerald-950/20 shadow-sm' 
+                            : 'border-slate-800 bg-slate-900/40 hover:border-slate-700'
                         }`}
                       >
-                        <div className="text-[10px] text-slate-400">TIER A (OPTIMAL)</div>
-                        <div className="text-xl font-bold text-emerald-400 mt-1">{tierA.length} <span className="text-xs font-normal text-slate-500">sites</span></div>
+                        <div className="text-xs text-slate-400">Tier A (Low Risk)</div>
+                        <div className="text-xl font-bold text-emerald-400 mt-1 font-mono">
+                          {tierA.length} <span className="text-xs font-normal text-slate-500">sites</span>
+                        </div>
                       </button>
 
                       <button 
                         type="button"
                         onClick={() => setDashboardFilter(dashboardFilter === 'tierB' ? 'all' : 'tierB')}
-                        className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
-                          dashboardFilter === 'tierB' ? 'border-cyan-500 bg-cyan-500/15' : 'border-white/5 bg-black/30 hover:border-cyan-500/30'
+                        className={`p-3 rounded-lg border text-left transition-all cursor-pointer ${
+                          dashboardFilter === 'tierB' 
+                            ? 'border-cyan-500 bg-cyan-950/20 shadow-sm' 
+                            : 'border-slate-800 bg-slate-900/40 hover:border-slate-700'
                         }`}
                       >
-                        <div className="text-[10px] text-slate-400">TIER B (SECURE)</div>
-                        <div className="text-xl font-bold text-cyan-400 mt-1">{tierB.length} <span className="text-xs font-normal text-slate-500">sites</span></div>
+                        <div className="text-xs text-slate-400">Tier B (Standard)</div>
+                        <div className="text-xl font-bold text-cyan-400 mt-1 font-mono">
+                          {tierB.length} <span className="text-xs font-normal text-slate-500">sites</span>
+                        </div>
                       </button>
 
                       <button 
                         type="button"
                         onClick={() => setDashboardFilter(dashboardFilter === 'tierC' ? 'all' : 'tierC')}
-                        className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
-                          dashboardFilter === 'tierC' ? 'border-yellow-500 bg-yellow-500/15' : 'border-white/5 bg-black/30 hover:border-yellow-500/30'
+                        className={`p-3 rounded-lg border text-left transition-all cursor-pointer ${
+                          dashboardFilter === 'tierC' 
+                            ? 'border-amber-500 bg-amber-950/20 shadow-sm' 
+                            : 'border-slate-800 bg-slate-900/40 hover:border-slate-700'
                         }`}
                       >
-                        <div className="text-[10px] text-slate-400">TIER C (VULNERABLE)</div>
-                        <div className="text-xl font-bold text-yellow-400 mt-1">{tierC.length} <span className="text-xs font-normal text-slate-500">sites</span></div>
+                        <div className="text-xs text-slate-400">Tier C (Deficiencies)</div>
+                        <div className="text-xl font-bold text-amber-400 mt-1 font-mono">
+                          {tierC.length} <span className="text-xs font-normal text-slate-500">sites</span>
+                        </div>
                       </button>
 
                       <button 
                         type="button"
                         onClick={() => setDashboardFilter(dashboardFilter === 'tierF' ? 'all' : 'tierF')}
-                        className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
-                          dashboardFilter === 'tierF' ? 'border-red-500 bg-red-500/15' : 'border-white/5 bg-black/30 hover:border-red-500/30'
+                        className={`p-3 rounded-lg border text-left transition-all cursor-pointer ${
+                          dashboardFilter === 'tierF' 
+                            ? 'border-rose-500 bg-rose-950/20 shadow-sm' 
+                            : 'border-slate-800 bg-slate-900/40 hover:border-slate-700'
                         }`}
                       >
-                        <div className="text-[10px] text-slate-400">TIER F (CRITICAL)</div>
-                        <div className="text-xl font-bold text-red-400 mt-1">{tierF.length} <span className="text-xs font-normal text-slate-500">sites</span></div>
+                        <div className="text-xs text-slate-400">Tier F (High Risk)</div>
+                        <div className="text-xl font-bold text-rose-400 mt-1 font-mono">
+                          {tierF.length} <span className="text-xs font-normal text-slate-500">sites</span>
+                        </div>
                       </button>
                     </div>
                   </div>
 
                   {/* Interactive Visited Sites Log Section with Live Search & Tabs */}
-                  <div className="w-full bg-[#090d16]/60 border border-white/5 rounded-2xl p-6 space-y-4">
-                    <div className="flex flex-col lg:flex-row justify-between lg:items-center gap-4 border-b border-white/5 pb-4">
+                  <div className="w-full bg-[#0c1222]/70 border border-slate-800 rounded-xl p-6 space-y-4 text-left">
+                    <div className="flex flex-col lg:flex-row justify-between lg:items-center gap-4 border-b border-slate-800/80 pb-4">
                       <div>
-                        <div className="text-[10px] text-purple-400 font-bold tracking-widest uppercase">DISCOVERED TARGET REGISTRY</div>
-                        <h3 className="text-base font-bold text-white uppercase mt-0.5">
-                          INSPECTED WEB NODES ({displayedSites.length})
+                        <div className="text-xs text-indigo-400 font-semibold uppercase tracking-wider">Evaluation Log</div>
+                        <h3 className="text-base font-bold text-white mt-0.5">
+                          Recent Site Scans ({displayedSites.length})
                         </h3>
                       </div>
 
                       {/* Filter Switcher Tabs */}
-                      <div className="flex flex-wrap items-center gap-1.5 bg-black/40 p-1.5 rounded-xl border border-white/5">
+                      <div className="flex flex-wrap items-center gap-1.5 bg-slate-900/80 p-1.5 rounded-xl border border-slate-800">
                         {[
-                          { id: 'all', label: 'ALL' },
-                          { id: 'safe', label: 'SAFE' },
-                          { id: 'threats', label: 'THREATS' },
-                          { id: 'extension', label: 'EXTENSION' },
-                          { id: 'manual', label: 'MANUAL' }
+                          { id: 'all', label: 'All' },
+                          { id: 'safe', label: 'Safe' },
+                          { id: 'threats', label: 'High Risk' },
+                          { id: 'extension', label: 'Extension' },
+                          { id: 'manual', label: 'Manual' }
                         ].map(tab => (
                           <button
                             key={tab.id}
                             type="button"
                             onClick={() => setDashboardFilter(tab.id)}
-                            className={`px-3 py-1 rounded-lg text-[10px] font-bold uppercase transition-all cursor-pointer ${
+                            className={`px-3 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer ${
                               dashboardFilter === tab.id 
-                                ? 'bg-purple-600 text-white shadow-md' 
-                                : 'text-slate-400 hover:text-white hover:bg-white/5'
+                                ? 'bg-indigo-600 text-white shadow-sm' 
+                                : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
                             }`}
                           >
                             {tab.label}
@@ -1857,69 +1912,67 @@ const handleVerifyOtp = async () => {
                     {/* Table / Cards List of Inspected Sites */}
                     <div className="space-y-2.5 max-h-96 overflow-y-auto pr-1">
                       {totalScans === 0 ? (
-                        /* ========================================================
-                           NEW USER ONBOARDING HERO BANNER (EMPTY STATE)
-                           ======================================================== */
-                        <div className="py-12 px-6 rounded-2xl border border-purple-500/30 bg-gradient-to-b from-purple-950/20 via-[#0a0f1d] to-black/80 text-center space-y-4 shadow-2xl animate-fadeIn">
-                          <div className="w-14 h-14 mx-auto rounded-2xl bg-purple-500/10 border border-purple-500/30 flex items-center justify-center text-2xl shadow-inner animate-pulse">
-                            📡
+                        /* Empty State: Shown only when user has zero scans */
+                        <div className="py-12 px-6 rounded-2xl border border-indigo-500/20 bg-gradient-to-b from-indigo-950/20 via-[#0a0f1d] to-[#070b14] text-center space-y-4 shadow-xl animate-fadeIn">
+                          <div className="w-14 h-14 mx-auto rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-2xl shadow-inner">
+                            🔍
                           </div>
-                          <div className="space-y-1.5 font-mono">
-                            <div className="text-[10px] font-bold text-emerald-400 tracking-widest uppercase">
-                              RADAR STANDBY // ZERO TELEMETRY INDEXED
+                          <div className="space-y-1.5 font-sans">
+                            <div className="text-[11px] font-bold text-emerald-400 tracking-wider uppercase font-mono">
+                              READY FOR FIRST SCAN
                             </div>
-                            <h3 className="text-base md:text-lg font-black text-white uppercase tracking-wider">
-                              START YOUR TRACKING FROM YOUR FIRST SEARCH
+                            <h3 className="text-base md:text-lg font-bold text-white tracking-wide">
+                              Start By Scanning Your First Website
                             </h3>
-                            <p className="text-xs text-slate-400 font-sans max-w-lg mx-auto leading-relaxed">
-                              Your SOC command portal is currently waiting for input. Inspect any inbound link or foreign domain to activate live telemetry benchmarks, tier compliance distribution, and incident history.
+                            <p className="text-xs text-slate-400 max-w-lg mx-auto leading-relaxed">
+                              Your security overview will populate here once you perform a scan. Check domain security, certificates, and vulnerabilities in real time.
                             </p>
                           </div>
                           <div className="pt-2">
                             <button
                               type="button"
                               onClick={() => setDashSubView('scanner')}
-                              className="px-6 py-3 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-mono font-bold text-xs uppercase tracking-widest transition-all duration-200 shadow-lg shadow-purple-900/40 cursor-pointer active:scale-95 inline-flex items-center gap-2"
+                              className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs tracking-wide transition-all shadow-md cursor-pointer active:scale-95 inline-flex items-center gap-2"
                             >
-                              <span>⚡</span> RUN YOUR FIRST SCAN →
+                              <span>⚡</span> Run Your First Scan →
                             </button>
                           </div>
                         </div>
                       ) : displayedSites.length === 0 ? (
                         /* Filter empty state */
-                        <div className="text-center py-12 text-slate-500 text-xs uppercase font-mono">
-                          No indexed domains match the selected telemetry filter.
+                        <div className="text-center py-12 text-slate-500 text-xs font-mono">
+                          No indexed domains match the selected filter.
                         </div>
                       ) : (
                         displayedSites.map((site, idx) => {
                           let badgeColor = 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
                           if (site.grade === 'B') badgeColor = 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20';
-                          if (site.grade === 'C') badgeColor = 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20';
-                          if (site.grade === 'F') badgeColor = 'bg-red-500/10 text-red-400 border-red-500/20';
+                          if (site.grade === 'C') badgeColor = 'bg-amber-500/10 text-amber-400 border-amber-500/20';
+                          if (site.grade === 'F') badgeColor = 'bg-rose-500/10 text-rose-400 border-rose-500/20';
 
                           return (
                             <div 
                               key={idx}
-                              className="border border-white/5 bg-[#0b101d]/60 hover:bg-[#0f1629] p-4 rounded-xl flex flex-col md:flex-row md:items-center justify-between gap-3 transition-all duration-200 hover:border-purple-500/30"
+                              className="border border-slate-800 bg-[#0c1222]/80 hover:bg-slate-900/60 p-4 rounded-xl flex flex-col md:flex-row md:items-center justify-between gap-3 transition-all duration-200 hover:border-slate-700"
                             >
                               <div className="space-y-1 max-w-lg">
                                 <div className="flex items-center gap-2">
-                                  <span className="font-bold text-white text-xs truncate">{site.url}</span>
-                                  <span className={`text-[9px] px-2 py-0.5 rounded border uppercase font-bold ${
-                                    site.source === 'extension' ? 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20' : 'bg-purple-500/10 text-purple-400 border-purple-500/20'
+                                  <span className="font-semibold text-white text-xs truncate font-mono">{site.url}</span>
+                                  <span className={`text-[10px] px-2 py-0.5 rounded border font-medium ${
+                                    site.source === 'extension' ? 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20' : 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20'
                                   }`}>
-                                    {site.source === 'extension' ? 'SHIELD EXTENSION' : 'MANUAL SCAN'}
+                                    {site.source === 'extension' ? 'Extension' : 'Manual Scan'}
                                   </span>
                                 </div>
-                                <div className="text-[10px] text-slate-400 flex items-center gap-3">
+                                <div className="text-[11px] text-slate-400 flex items-center gap-3 font-mono">
                                   <span>LOGGED: {site.timestamp}</span>
-                                  <span>STATUS: <strong className="text-slate-300">{site.statusText || 'ANALYZED'}</strong></span>
+                                  <span>STATUS: <strong className="text-slate-300 font-normal">{site.statusText || 'ANALYZED'}</strong></span>
                                 </div>
                               </div>
 
                               <div className="flex items-center gap-3 self-end md:self-center shrink-0">
-                                <div className={`px-3 py-1 rounded-lg border font-black text-sm ${badgeColor}`}>
-                                  TIER {site.grade} <span className="text-[10px] opacity-75 font-normal">({site.score}%)</span>
+                                <div className={`px-3 py-1 rounded-lg border font-bold text-xs font-mono ${badgeColor}`}>
+                                  Tier {site.grade} <span className="text-[10px] opacity-75 font-normal">({site.score}%)</span>
                                 </div>
                                 
                                 <button
@@ -1929,9 +1982,9 @@ const handleVerifyOtp = async () => {
                                     setTargetUrl(site.url);
                                     runSecurityScan(site.url);
                                   }}
-                                  className="h-8 px-3 rounded-lg border border-purple-500/30 bg-purple-500/10 hover:bg-purple-600 hover:text-white text-purple-300 text-[10px] font-bold uppercase transition-all cursor-pointer"
+                                  className="h-8 px-3 rounded-lg border border-indigo-500/30 bg-indigo-500/10 hover:bg-indigo-600 hover:text-white text-indigo-300 text-xs font-medium transition-all cursor-pointer"
                                 >
-                                  RE-SCAN ↻
+                                  Re-scan ↻
                                 </button>
                               </div>
                             </div>

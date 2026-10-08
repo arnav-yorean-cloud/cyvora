@@ -983,26 +983,22 @@ app.get('/api/history/user', async (req, res) => {
 // ========================================================
 app.get('/api/history', async (req, res) => {
   try {
-    const realScans = await Scan.find()
-      .sort({ createdAt: -1 })
-      .limit(60);
-
-    const formattedHistory = realScans.map(scan => ({
+    const realScans = await Scan.find().sort({ createdAt: -1 }).limit(60);
+    const formattedHistory = (realScans || []).map(scan => ({
       url: scan.url,
       domain: scan.domain,
       score: scan.score,
       grade: scan.grade || (scan.score >= 85 ? 'A' : (scan.score >= 70 ? 'B' : (scan.score >= 50 ? 'C' : 'F'))),
-      source: scan.statusText?.includes('EXTENSION') ? 'extension' : 'manual',
+      source: scan.metadata?.registrar?.includes('Extension') || scan.statusText?.includes('Extension') ? 'extension' : 'manual',
       statusText: scan.statusText,
       gaps: scan.gaps || [],
       metadata: scan.metadata || {},
-      timestamp: new Date(scan.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      date: new Date(scan.createdAt).toLocaleDateString()
+      timestamp: new Date(scan.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      date: new Date(scan.createdAt || Date.now()).toLocaleDateString()
     }));
-
     return res.json(formattedHistory);
   } catch (err) {
-    return res.status(500).json({ error: "Failed to fetch real scan history" });
+    return res.status(500).json({ error: "Failed to fetch scan history" });
   }
 });
 

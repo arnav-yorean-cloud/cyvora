@@ -1,6 +1,6 @@
 chrome.runtime.onMessage.addListener((message) => {
   if (message.action !== 'RENDER_SHIELD_UI') return;
-  const { isWhitelisted, score, gaps, dashboardUrl, domain, fullUrl, displayLabel } = message.payload;
+  const { isWhitelisted, score, gaps, dashboardUrl, domain, fullUrl } = message.payload;
 
   if (document.getElementById('cyvora-root-shield')) return;
 
@@ -12,6 +12,7 @@ chrome.runtime.onMessage.addListener((message) => {
   const shadow = host.attachShadow({ mode: 'open' });
   const inspectUrl = `${dashboardUrl}/?targetUrl=${encodeURIComponent(fullUrl)}&autoScan=true`;
 
+  // Sirf tabhi barrier lagao jab domain Dangerous (< 45) ho aur whitelisted na ho
   if (!isWhitelisted && score < 45) {
     const overrideKey = `cyvora_override_${domain}`;
     if (!sessionStorage.getItem(overrideKey)) {
@@ -27,65 +28,8 @@ chrome.runtime.onMessage.addListener((message) => {
     }
   }
 
-  renderCornerPill(shadow, isWhitelisted, displayLabel, score, inspectUrl);
-  document.documentElement.appendChild(host);
+  // Safe sites ke liye corner pill render nahi hoga (Clean Browsing)
 });
-
-function renderCornerPill(shadow, isWhitelisted, displayLabel, score, inspectUrl) {
-  let pillClass = 'cy-green';
-  let dotColor = '#10b981';
-  if (!isWhitelisted) {
-    if (score < 45) { pillClass = 'cy-red'; dotColor = '#ef4444'; }
-    else if (score < 75) { pillClass = 'cy-amber'; dotColor = '#f59e0b'; }
-  }
-
-  shadow.innerHTML = `
-    <style>
-      .cy-pill {
-        position: fixed;
-        bottom: 24px;
-        right: 24px;
-        pointer-events: auto;
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        padding: 8px 16px;
-        border-radius: 9999px;
-        background: #000000;
-        border: 1px solid rgba(255, 255, 255, 0.3);
-        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.9);
-        user-select: none;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace;
-      }
-      .cy-dot {
-        width: 9px;
-        height: 9px;
-        border-radius: 50%;
-        background-color: ${dotColor};
-        box-shadow: 0 0 10px ${dotColor};
-      }
-      .cy-text {
-        font-size: 11px;
-        font-weight: 800;
-        color: #ffffff;
-        letter-spacing: 0.08em;
-      }
-      .cy-link {
-        font-size: 13px;
-        color: #c084fc;
-        text-decoration: none;
-        font-weight: 800;
-        margin-left: 2px;
-      }
-      .cy-link:hover { color: #ffffff; }
-    </style>
-    <div class="cy-pill">
-      <span class="cy-dot"></span>
-      <span class="cy-text">CYVORA: ${displayLabel}</span>
-      <a href="${inspectUrl}" target="_blank" class="cy-link" title="Open in Cyvora Recon">↗</a>
-    </div>
-  `;
-}
 
 function renderRedWarningModal(shadow, host, score, gaps = [], inspectUrl, overrideKey) {
   shadow.innerHTML = `
@@ -96,110 +40,78 @@ function renderRedWarningModal(shadow, host, score, gaps = [], inspectUrl, overr
         padding: 0;
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       }
-      /* Dark Click-Lock Backdrop */
       .cy-scrim {
         position: fixed;
         inset: 0;
         width: 100vw;
         height: 100vh;
-        background: rgba(0, 0, 0, 0.6);
+        background: rgba(5, 7, 15, 0.85);
+        backdrop-filter: blur(12px);
         pointer-events: auto;
         display: flex;
         align-items: center;
         justify-content: center;
         padding: 24px;
       }
-      /* 100% Solid Opaque Pitch-Black Modal */
       .cy-modal {
         width: 100%;
-        max-width: 530px;
-        background: #000000 !important;
-        border: 2px solid #ef4444 !important;
-        border-radius: 16px;
-        padding: 30px;
-        box-shadow: 0 0 60px rgba(0, 0, 0, 1), 0 0 40px rgba(239, 68, 68, 0.35);
+        max-width: 520px;
+        background: #090d16 !important;
+        border: 1.5px solid rgba(239, 68, 68, 0.5) !important;
+        border-radius: 18px;
+        padding: 28px;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8), 0 0 35px rgba(239, 68, 68, 0.2);
         color: #ffffff;
-        opacity: 1 !important;
         pointer-events: auto;
       }
       .cy-header {
         display: flex;
         align-items: flex-start;
-        gap: 16px;
+        gap: 14px;
       }
       .cy-icon {
-        font-size: 34px;
+        font-size: 30px;
         line-height: 1;
         flex-shrink: 0;
       }
       .cy-title {
-        font-size: 17px;
-        font-weight: 900;
+        font-size: 16px;
+        font-weight: 800;
         color: #ef4444;
-        letter-spacing: 0.05em;
+        letter-spacing: 0.04em;
         font-family: monospace;
         line-height: 1.2;
       }
       .cy-sub {
-        margin-top: 6px;
-        font-size: 13px;
+        margin-top: 5px;
+        font-size: 12px;
         color: #94a3b8;
         line-height: 1.5;
       }
       .cy-card {
-        margin: 22px 0;
-        background: #090d16;
-        border: 1px solid #1e293b;
+        margin: 20px 0;
+        background: rgba(0, 0, 0, 0.4);
+        border: 1px solid rgba(239, 68, 68, 0.2);
         border-radius: 12px;
-        padding: 18px 20px;
-        display: flex;
-        align-items: center;
-        gap: 20px;
-      }
-      .cy-score-box {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        border-right: 1px solid #1e293b;
-        padding-right: 20px;
-        min-width: 80px;
-        flex-shrink: 0;
-      }
-      .cy-score {
-        font-size: 40px;
-        font-weight: 900;
-        color: #ef4444;
-        font-family: monospace;
-        line-height: 1;
-      }
-      .cy-score-lbl {
-        font-size: 9px;
-        font-weight: 800;
-        color: #64748b;
-        letter-spacing: 0.12em;
-        font-family: monospace;
-        margin-top: 5px;
-      }
-      .cy-gaps {
-        font-size: 12px;
-        color: #e2e8f0;
-        line-height: 1.5;
+        padding: 16px 18px;
       }
       .cy-gaps strong {
         font-size: 10px;
         letter-spacing: 0.08em;
         color: #f87171;
         font-family: monospace;
+        display: block;
+        margin-bottom: 6px;
       }
       .cy-gaps ul {
-        margin-top: 6px;
         padding-left: 18px;
         list-style: disc;
       }
       .cy-gaps li {
-        margin-bottom: 3px;
-        font-weight: 500;
+        font-size: 11px;
+        color: #cbd5e1;
+        margin-bottom: 4px;
+        line-height: 1.4;
       }
       .cy-actions {
         display: flex;
@@ -209,33 +121,32 @@ function renderRedWarningModal(shadow, host, score, gaps = [], inspectUrl, overr
       .cy-btn-outline,
       .cy-btn-solid {
         flex: 1;
-        padding: 13px 16px;
+        padding: 11px 16px;
         border-radius: 10px;
-        font-size: 12px;
-        font-weight: 800;
+        font-size: 11px;
+        font-weight: 700;
         text-align: center;
         cursor: pointer;
         text-decoration: none;
         font-family: monospace;
-        letter-spacing: 0.04em;
+        letter-spacing: 0.03em;
         transition: all 0.2s ease;
         display: inline-block;
       }
       .cy-btn-outline {
         background: #0f172a;
         border: 1px solid #334155;
-        color: #cbd5e1;
+        color: #94a3b8;
       }
       .cy-btn-outline:hover {
         background: #1e293b;
         color: #ffffff;
-        border-color: #64748b;
       }
       .cy-btn-solid {
         background: #dc2626;
         border: 1px solid #ef4444;
         color: #ffffff;
-        box-shadow: 0 4px 15px rgba(220, 38, 38, 0.45);
+        box-shadow: 0 4px 15px rgba(220, 38, 38, 0.3);
       }
       .cy-btn-solid:hover {
         background: #b91c1c;
@@ -247,27 +158,23 @@ function renderRedWarningModal(shadow, host, score, gaps = [], inspectUrl, overr
         <div class="cy-header">
           <div class="cy-icon">⚠️</div>
           <div>
-            <h3 class="cy-title">CRITICAL SECURITY RISK DETECTED</h3>
-            <p class="cy-sub">Cyvora Shield flagged this domain for anomalous structure or lack of defense protocols.</p>
+            <h3 class="cy-title">CRITICAL SECURITY RISK BLOCKED</h3>
+            <p class="cy-sub">Cyvora Shield blocked interaction with this host due to severe threat heuristics.</p>
           </div>
         </div>
 
         <div class="cy-card">
-          <div class="cy-score-box">
-            <span class="cy-score">${score}</span>
-            <span class="cy-score-lbl">DEFENSE</span>
-          </div>
           <div class="cy-gaps">
-            <strong>DETECTED DEFICIENCIES:</strong>
+            <strong>DETECTED THREAT INDICATORS:</strong>
             <ul>
-              ${gaps.length ? gaps.map(g => `<li>${g}</li>`).join('') : '<li>Untrusted infrastructure footprint</li>'}
+              ${gaps.length ? gaps.map(g => `<li>${g}</li>`).join('') : '<li>High probability phishing or credential interception host</li>'}
             </ul>
           </div>
         </div>
 
         <div class="cy-actions">
           <button id="cy-btn-bypass" class="cy-btn-outline" type="button">Continue to Site Anyway</button>
-          <a href="${inspectUrl}" target="_blank" class="cy-btn-solid">Inspect on Cyvora</a>
+          <a href="${inspectUrl}" target="_blank" class="cy-btn-solid">Inspect on Cyvora →</a>
         </div>
       </div>
     </div>
