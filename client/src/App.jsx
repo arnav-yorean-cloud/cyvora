@@ -5,6 +5,7 @@ import { signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas-pro';
 import BreachChecker from './BreachChecker';
+import Profile from './Profile.jsx';
 // ========================================================
 // HANDCRAFTED HORIZONTAL DEEP-OCEAN INTERACTIVE WAVE CANVAS
 // ========================================================
@@ -1947,12 +1948,11 @@ const handleVerifyOtp = async () => {
 
           {/* VIEW B: IDENTITY PROFILE VIEW SEGMENT */}
           {dashSubView === 'profile' && (
-            <div className="w-full h-full flex flex-col items-center justify-center p-8 relative">
-              <div className="w-full max-w-md rounded-xl border border-yellow-500/20 bg-[#111827]/60 backdrop-blur-md p-8 text-center shadow-2xl animate-fadeIn font-mono">
-                <p className="text-base font-bold text-white uppercase tracking-wider">wait krro guyz under construction h ye</p>
-                <p className="text-xs text-slate-500 mt-2">COMING SOON</p>
-              </div>
-            </div>
+            <Profile
+              email={email}
+              username={username}
+              currentUser={currentUser}
+            />
           )}
           {/* ========================================================
               VIEW C-1: CYVORA URL SECURITY SCANNER UPGRADED COMMAND FRAMEWORK

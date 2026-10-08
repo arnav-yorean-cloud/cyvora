@@ -603,6 +603,28 @@ app.get('/api/scan/quick-check', async (req, res) => {
 // ========================================================
 // ROUTE 4: HYBRID ML + MULTI-FACTOR DEEP URL SCANNER (17-FEATURE CALIBRATION)
 // ========================================================
+async function recordUserScanHistory(email, report, source = 'manual') {
+  const cleanEmail = email?.toLowerCase().trim();
+  if (!cleanEmail || !report?.url) return;
+  try {
+    await History.create({
+      userEmail: cleanEmail,
+      url: report.url,
+      domain: report.domain || new URL(report.url).hostname,
+      score: report.score,
+      grade: report.grade,
+      statusText: report.statusText,
+      source,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      date: new Date().toLocaleDateString(),
+      gaps: report.gaps || [],
+      metadata: report.metadata || {}
+    });
+  } catch (historyErr) {
+    console.warn('[USER_HISTORY_WRITE_FAIL]', historyErr.message);
+  }
+}
+
 app.post('/api/scan/url', async (req, res) => {
   let { url, email } = req.body;
   if (!url) return res.status(400).json({ error: "Missing scan path initialization parameter." });
@@ -617,16 +639,18 @@ app.post('/api/scan/url', async (req, res) => {
   try {
     const cached = await Scan.findOne({ domain: hostname });
     if (cached && cached.metadata?.mlFeaturesEvaluated) {
-      return res.json({
+      const cachedReport = {
         url: cached.url,
+        domain: hostname,
         score: cached.score,
         grade: cached.grade || (cached.score >= 85 ? 'A' : (cached.score >= 70 ? 'B' : (cached.score >= 50 ? 'C' : 'F'))),
         statusText: cached.statusText,
         statusColor: cached.statusColor,
         metadata: cached.metadata,
-        gaps: cached.gaps,
-        fromCache: true
-      });
+        gaps: cached.gaps || []
+      };
+      await recordUserScanHistory(email, cachedReport, 'manual');
+      return res.json({ ...cachedReport, fromCache: true });
     }
   } catch (err) {
     console.warn('[CACHE_LOOKUP_FAIL]', err.message);
@@ -868,20 +892,89 @@ app.post('/api/scan/url', async (req, res) => {
       console.warn('[SCAN_DB_WRITE_FAIL]', dbErr.message);
     }
 
-    return res.json({
+    const freshReport = {
       url: targetCleanUrl,
+      domain: hostname,
       score: baseScore,
       grade: finalGrade,
       statusText,
       statusColor,
       metadata: metadataPayload,
-      gaps: finalGaps,
+      gaps: finalGaps
+    };
+    await recordUserScanHistory(email, freshReport, 'manual');
+
+    return res.json({
+      ...freshReport,
       fromCache: false
     });
 
   } catch (globalError) {
     console.error('[SCAN_CRASH]', globalError);
     return res.status(500).json({ error: "Internal processing crash inside scanning engine threads." });
+  }
+});
+
+// ========================================================
+// ROUTE: USER PROFILE
+// ========================================================
+app.get('/api/profile', async (req, res) => {
+  try {
+    const cleanEmail = req.query.email?.toLowerCase().trim();
+    if (!cleanEmail) return res.status(400).json({ message: 'Email is required.' });
+
+    const user = await User.findOne({ email: cleanEmail }).select('-password');
+    if (!user) return res.status(404).json({ message: 'User profile not found.' });
+
+    return res.json({
+      user: {
+        id: user._id,
+        email: user.email,
+        username: user.username,
+        age: user.age,
+        gender: user.gender,
+        authMethod: user.authMethod,
+        lastActive: user.lastActive,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt
+      }
+    });
+  } catch (err) {
+    console.error('[PROFILE_FETCH_ERROR]', err);
+    return res.status(500).json({ message: 'Failed to fetch user profile.' });
+  }
+});
+
+// ========================================================
+// ROUTE: FETCH SCANS FOR ONE USER ONLY
+// ========================================================
+app.get('/api/history/user', async (req, res) => {
+  try {
+    const cleanEmail = req.query.email?.toLowerCase().trim();
+    if (!cleanEmail) return res.status(400).json({ message: 'Email is required.' });
+
+    const realScans = await History.find({ userEmail: cleanEmail })
+      .sort({ createdAt: -1 })
+      .limit(60);
+
+    const formattedHistory = realScans.map(scan => ({
+      url: scan.url,
+      domain: scan.domain,
+      score: scan.score,
+      grade: scan.grade,
+      statusText: scan.statusText,
+      source: scan.source,
+      gaps: scan.gaps || [],
+      metadata: scan.metadata || {},
+      timestamp: scan.timestamp || new Date(scan.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      date: scan.date || new Date(scan.createdAt).toLocaleDateString(),
+      createdAt: scan.createdAt
+    }));
+
+    return res.json(formattedHistory);
+  } catch (err) {
+    console.error('[USER_HISTORY_FETCH_ERROR]', err);
+    return res.status(500).json({ message: 'Failed to fetch user scan history.' });
   }
 });
 
