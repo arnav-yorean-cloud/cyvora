@@ -899,14 +899,25 @@ function App() {
 
   // 2. Fetch Real Historical Scans from MongoDB
   useEffect(() => {
-    fetch('http://localhost:5000/api/history')
-      .then(res => res.ok ? res.json() : [])
-      .then(realRecords => {
-        if (Array.isArray(realRecords) && realRecords.length > 0) {
-          setScanHistory(realRecords);
-        }
-      })
-      .catch(err => console.error("Telemetry fetch error:", err));
+    const fetchTelemetry = () => {
+      fetch('http://localhost:5000/api/history')
+        .then(res => res.ok ? res.json() : [])
+        .then(realRecords => {
+          if (Array.isArray(realRecords)) {
+            setScanHistory(realRecords);
+          }
+        })
+        .catch(err => console.error("Telemetry fetch error:", err));
+    };
+
+    fetchTelemetry();
+    window.addEventListener('focus', fetchTelemetry);
+    const liveInterval = setInterval(fetchTelemetry, 4000);
+
+    return () => {
+      window.removeEventListener('focus', fetchTelemetry);
+      clearInterval(liveInterval);
+    };
   }, [dashSubView]);
   const [showReport, setShowReport] = useState(false);
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
@@ -929,11 +940,14 @@ function App() {
       if (progress >= 100) clearInterval(interval);
     }, 25);
 
+    const isFromExtension = (new URLSearchParams(window.location.search)).get('autoScan') === 'true';
+    const scanSource = isFromExtension ? 'extension' : 'manual';
+
     try {
       const res = await fetch('http://127.0.0.1:5000/api/scan/url', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: urlToScan, email }) // <-- email pass karein
+        body: JSON.stringify({ url: urlToScan, email, source: scanSource })
       });
       const data = await res.json();
       if (res.ok) {
@@ -947,12 +961,12 @@ function App() {
           ...data,
           grade: finalGrade,
           gradeColor: gradeColor,
-          source: (new URLSearchParams(window.location.search)).get('autoScan') === 'true' ? 'extension' : 'manual',
+          source: scanSource,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           date: 'Just now'
         };
         setScanResult(freshReport);
-        setScanHistory(prev => [freshReport, ...prev]);
+        setScanHistory(prev => [freshReport, ...prev.filter(item => item.domain !== freshReport.domain)]);
       } else {
         setScanError(data.message || "Target identity signature rejected by DNS lookup routers.");
       }
@@ -2257,13 +2271,19 @@ const handleVerifyOtp = async () => {
                         <div className="p-4 rounded-xl border border-white/5 bg-[#0b101d]/70 hover:border-purple-500/30 transition-all space-y-2">
                           <div className="flex justify-between items-center">
                             <span className="text-[10px] text-slate-400 font-bold uppercase">1. DATA ENCRYPTION</span>
-                            <span className="text-[9px] px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold">
-                              SECURED
+                            <span className={`text-[9px] px-2 py-0.5 rounded font-bold border ${
+                              scanReport.metadata?.protocol?.includes('HTTP v1.1') || scanReport.url?.startsWith('http://')
+                                ? 'bg-red-500/10 text-red-400 border-red-500/20 animate-pulse'
+                                : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                            }`}>
+                              {scanReport.metadata?.protocol?.includes('HTTP v1.1') || scanReport.url?.startsWith('http://') ? 'UNENCRYPTED' : 'SECURED'}
                             </span>
                           </div>
                           <div className="text-xs font-bold text-white">{scanReport.metadata?.protocol || 'TLS v1.3'}</div>
                           <p className="text-[11px] text-slate-400 font-sans leading-relaxed">
-                            Traffic encrypted with {scanReport.metadata?.cipher?.split(' ')[0] || 'AES-256'}. Sensitive credentials cannot be intercepted in transit.
+                            {scanReport.metadata?.protocol?.includes('HTTP v1.1') || scanReport.url?.startsWith('http://')
+                              ? 'Unencrypted plain text HTTP traffic. Data can be intercepted by anyone on the network.'
+                              : `Traffic encrypted with ${scanReport.metadata?.cipher?.split(' ')[0] || 'AES-256'}. Sensitive credentials secured.`}
                           </p>
                         </div>
 
@@ -2317,8 +2337,12 @@ const handleVerifyOtp = async () => {
                         <div className="p-4 rounded-xl border border-white/5 bg-[#0b101d]/70 hover:border-purple-500/30 transition-all space-y-2">
                           <div className="flex justify-between items-center">
                             <span className="text-[10px] text-slate-400 font-bold uppercase">5. PROTOCOL ENFORCEMENT</span>
-                            <span className="text-[9px] px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold">
-                              ACTIVE
+                            <span className={`text-[9px] px-2 py-0.5 rounded font-bold border ${
+                              scanReport.gaps?.some(g => g.toLowerCase().includes('hsts') || g.toLowerCase().includes('unencrypted'))
+                                ? 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20'
+                                : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                            }`}>
+                              {scanReport.gaps?.some(g => g.toLowerCase().includes('hsts') || g.toLowerCase().includes('unencrypted')) ? 'ABSENT' : 'ACTIVE'}
                             </span>
                           </div>
                           <div className="text-xs font-bold text-white">HSTS Security Protocol</div>

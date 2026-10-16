@@ -113,42 +113,51 @@ chrome.tabs.query(
 
 
             // =================================
-            // RUN ML CLASSIFICATION
+            // READ COMBINED RESULT FROM STORAGE
             // =================================
 
-            const result =
-                runLocalMLClassification(tab.url);
+            chrome.storage.local.get([`tab_score_${tab.id}`], function (res) {
+                const stored = res[`tab_score_${tab.id}`];
 
+                // agar site load hone me fail hui ya exist nahi karti
+                if (stored && stored.isUnreachable) {
+                    setStatus(
+                        statusElement,
+                        messageElement,
+                        "UNREACHABLE",
+                        "This site cannot be reached or does not exist"
+                    );
+                    return;
+                }
 
-            const score = result.score;
+                // agar combined score storage me hai toh wahi use hoga warna local ML fallback
+                const finalScore = stored && Number.isFinite(Number(stored.score))
+                    ? Number(stored.score)
+                    : runLocalMLClassification(tab.url).score;
 
-
-            console.log("CYVORA ML RESULT:", result);
-            console.log("CYVORA ML SCORE:", score);
-
-
-            // =================================
-            // FINAL DECISION
-            // =================================
-
-            if (score >= TRUST_THRESHOLD) {
-
-                setStatus(
-                    statusElement,
-                    messageElement,
-                    "TRUSTED",
-                    `Website appears safe - ML Score: ${score}`
-                );
-
-            } else {
-
-                setStatus(
-                    statusElement,
-                    messageElement,
-                    "UNTRUSTED",
-                    `Security concerns detected - ML Score: ${score}`
-                );
-            }
+                if (finalScore >= 60) {
+                    setStatus(
+                        statusElement,
+                        messageElement,
+                        "TRUSTED",
+                        "Website verified and infrastructure safe"
+                    );
+                } else if (finalScore >= 45) {
+                    setStatus(
+                        statusElement,
+                        messageElement,
+                        "WARNING",
+                        "Moderate security anomalies detected"
+                    );
+                } else {
+                    setStatus(
+                        statusElement,
+                        messageElement,
+                        "UNTRUSTED",
+                        "Critical security threat flagged"
+                    );
+                }
+            });
 
 
         } catch (error) {

@@ -549,12 +549,13 @@ app.get('/api/scan/quick-check', async (req, res) => {
   }
 
   try {
-    // Tier 2: Check MongoDB
+    // Tier 2: Check MongoDB - ensure extension reads exact dashboard score
     let dbScan = await Scan.findOne({ domain: cleanDomain });
     if (dbScan) {
       const result = {
         score: dbScan.score,
-        verdict: dbScan.score >= 75 ? 'Safe' : (dbScan.score >= 45 ? 'Moderate' : 'Critical'),
+        grade: dbScan.grade,
+        verdict: dbScan.score >= 70 ? 'Safe' : (dbScan.score >= 45 ? 'Moderate' : 'Critical'),
         gaps: dbScan.gaps || [],
         cached: true
       };
@@ -572,8 +573,9 @@ app.get('/api/scan/quick-check', async (req, res) => {
         url: `https://${cleanDomain}`,
         score: triage.score,
         grade: triage.score >= 85 ? 'A' : (triage.score >= 70 ? 'B' : (triage.score >= 45 ? 'C' : 'F')),
+        source: 'extension',
         statusText: triage.score >= 75 
-          ? 'MAXIMUM INFRASTRUCTURE SECURITY VERIFIED' 
+          ? 'MAXIMUM INFRASTRUCTURE SECURITY VERIFIED - EXTENSION' 
           : (triage.score >= 45 ? 'MODERATE RISK FLAGGED BY EXTENSION' : 'SEVERE THREAT DETECTED BY EXTENSION'),
         statusColor: triage.score >= 75 ? 'text-emerald-400' : (triage.score >= 45 ? 'text-yellow-400' : 'text-red-400'),
         gaps: triage.gaps || ['Monitored via Cyvora Shield background surveillance.'],
@@ -626,7 +628,8 @@ async function recordUserScanHistory(email, report, source = 'manual') {
 }
 
 app.post('/api/scan/url', async (req, res) => {
-  let { url, email } = req.body;
+  let { url, email, source } = req.body;
+  const scanSource = source === 'extension' ? 'extension' : 'manual';
   if (!url) return res.status(400).json({ error: "Missing scan path initialization parameter." });
 
   let hostname = url.replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0].split(':')[0].trim().toLowerCase();
@@ -699,12 +702,17 @@ app.post('/api/scan/url', async (req, res) => {
     // =====================================================
     // PILLAR 2: TLS & CRYPTOGRAPHIC HANDSHAKE (MAX 30 POINTS)
     // =====================================================
-    let sslPoints = 30;
+    const isExplicitHttp = targetCleanUrl.startsWith('http://');
+    let sslPoints = isExplicitHttp ? 0 : 30;
     let tlsMetrics = { 
-      protocol: "TLS v1.3 (Max Strength)", 
-      cipher: "AES_256_GCM_SHA384 High Strength", 
+      protocol: isExplicitHttp ? "HTTP v1.1 (Unencrypted Cleartext)" : "TLS v1.3 (Max Strength)", 
+      cipher: isExplicitHttp ? "NONE (Unencrypted)" : "AES_256_GCM_SHA384 High Strength", 
       registrar: "Verified Web Authority" 
     };
+
+    if (isExplicitHttp) {
+      gaps.unshift("Critical: Unencrypted cleartext HTTP traffic. Missing SSL/TLS transport encryption.");
+    }
 
     if (isLocal) {
       sslPoints = 0;
@@ -712,7 +720,7 @@ app.post('/api/scan/url', async (req, res) => {
       tlsMetrics.cipher = "NONE (Local Loopback)";
       tlsMetrics.registrar = "Loopback Local Host";
       gaps.push("Unencrypted cleartext traffic on local host.");
-    } else {
+    } else if (!isExplicitHttp) {
       try {
         const socket = tls.connect(443, hostname, { servername: hostname, rejectUnauthorized: false }, () => {
           const cert = socket.getPeerCertificate();
@@ -722,7 +730,11 @@ app.post('/api/scan/url', async (req, res) => {
           socket.destroy();
         });
         socket.on('error', () => {
-          tlsMetrics.registrar = "Global Cloud Infrastructure";
+          sslPoints = 0;
+          tlsMetrics.protocol = "HTTP v1.1 (Unencrypted)";
+          tlsMetrics.cipher = "NONE";
+          tlsMetrics.registrar = "Unverified Infrastructure";
+          gaps.push("TLS handshake failed on port 443. Certificate unreachable.");
         });
       } catch (e) {
         tlsMetrics.registrar = "Global Edge Authority";
@@ -897,12 +909,13 @@ app.post('/api/scan/url', async (req, res) => {
       domain: hostname,
       score: baseScore,
       grade: finalGrade,
-      statusText,
+      source: scanSource,
+      statusText: scanSource === 'extension' ? `${statusText} - EXTENSION` : statusText,
       statusColor,
       metadata: metadataPayload,
       gaps: finalGaps
     };
-    await recordUserScanHistory(email, freshReport, 'manual');
+    await recordUserScanHistory(email, freshReport, scanSource);
 
     return res.json({
       ...freshReport,
@@ -989,7 +1002,7 @@ app.get('/api/history', async (req, res) => {
       domain: scan.domain,
       score: scan.score,
       grade: scan.grade || (scan.score >= 85 ? 'A' : (scan.score >= 70 ? 'B' : (scan.score >= 50 ? 'C' : 'F'))),
-      source: scan.metadata?.registrar?.includes('Extension') || scan.statusText?.includes('Extension') ? 'extension' : 'manual',
+      source: scan.source === 'extension' || (scan.statusText && scan.statusText.toUpperCase().includes('EXTENSION')) || (scan.metadata?.registrar && scan.metadata.registrar.includes('Extension')) ? 'extension' : 'manual',
       statusText: scan.statusText,
       gaps: scan.gaps || [],
       metadata: scan.metadata || {},
